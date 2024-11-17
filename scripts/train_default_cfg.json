@@ -1,0 +1,15 @@
+{
+  "bs": 512,
+  "max_epochs": 40,
+  "dropout": 0.1,
+  "gamma": 0.9,
+  "patience": 5,
+  "patience_threshold": 0.001,
+  "embed_hidden": 128,
+  "d_model": 32,
+  "ff_hidden": 128,
+  "pool_hidden": 64,
+  "num_heads": 2,
+  "num_blocks": 2,
+  "start_lr": 2e-4
+}
