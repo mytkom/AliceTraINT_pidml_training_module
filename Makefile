@@ -6,3 +6,7 @@ build:
 run:
 	go run ./cmd/AliceTraINT_pidml_training_module
 
+.PHONY: lint
+lint:
+	golangci-lint run
+
