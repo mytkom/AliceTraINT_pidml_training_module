@@ -1,8 +1,11 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
 )
@@ -15,18 +18,49 @@ const (
 	Onnx
 )
 
+func GetExtensionFromResultType(resType TaskResultType) string {
+	switch resType {
+	case Log:
+		return ".log"
+	case Image:
+		return ".png"
+	case Onnx:
+		return ".onnx"
+	}
+
+	return ""
+}
+
 type TaskResultPayload struct {
 	Name        string
-	Type        int
+	Type        TaskResultType
 	Description string
-	Filename    string
-	File        string
+	FilePath    string
+}
+
+func intToReader(value int) io.Reader {
+	str := fmt.Sprintf("%d", value)
+
+	return bytes.NewBufferString(str)
 }
 
 func UploadTaskResult(cfg *config.Config, ttId uint, ttr *TaskResultPayload) error {
-	path := fmt.Sprintf("/training_tasks/%d/training_task_results", ttId)
+	path := fmt.Sprintf("/training-tasks/%d/training-task-results", ttId)
 
-	resp, _, err := sendRequest(cfg, "POST", path, ttr, nil)
+	file, err := os.Open(ttr.FilePath)
+	if err != nil {
+		return fmt.Errorf("error opening file: %s", err.Error())
+	}
+	defer file.Close()
+
+	formData := map[string]io.Reader{
+		"file":        file,
+		"file-type":   intToReader(int(ttr.Type)),
+		"name":        bytes.NewBufferString(ttr.Name),
+		"description": bytes.NewBufferString(ttr.Description),
+	}
+
+	resp, _, err := sendMultipartRequest(cfg, "POST", path, formData, nil)
 	if err != nil {
 		return err
 	}

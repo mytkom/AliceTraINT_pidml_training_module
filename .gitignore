@@ -23,3 +23,7 @@ go.work.sum
 
 # env file
 .env
+
+gridCertificate.p12
+data
+results

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -13,6 +14,11 @@ type Config struct {
 	MachineID         uint
 	MachineSecretKey  string
 	AlicetrainBaseUrl string
+	DataDirPath       string
+	ScriptsDirPath    string
+	VenvDirPath       string
+	ResultsDirPath    string
+	PdiDirPath        string
 }
 
 func LoadConfig() *Config {
@@ -21,46 +27,45 @@ func LoadConfig() *Config {
 		log.Fatal("Error loading .env file")
 	}
 
-	machineID, err := getEnvAsUint("MACHINE_ID")
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	MachineSecretKey, err := getEnv("MACHINE_SECRET_KEY")
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	alicetraintBaseUrl, err := getEnv("ALICETRAINT_BASE_URL")
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
 	return &Config{
-		MachineID:         machineID,
-		MachineSecretKey:  MachineSecretKey,
-		AlicetrainBaseUrl: alicetraintBaseUrl,
+		MachineID:         getEnvAsUint("MACHINE_ID"),
+		MachineSecretKey:  getEnv("MACHINE_SECRET_KEY"),
+		AlicetrainBaseUrl: getEnv("ALICETRAINT_BASE_URL"),
+		DataDirPath:       getEnvPath("ALICETRAINT_DATA_DIR_PATH"),
+		ScriptsDirPath:    getEnvPath("ALICETRAINT_SCRIPTS_DIR_PATH"),
+		VenvDirPath:       getEnvPath("ALICETRAINT_VENV_DIR_PATH"),
+		ResultsDirPath:    getEnvPath("ALICETRAINT_RESULTS_DIR_PATH"),
+		PdiDirPath:        getEnvPath("ALICETRAINT_PDI_SRC_DIR_PATH"),
 	}
 }
 
-func getEnv(key string) (string, error) {
-	if value, exists := os.LookupEnv(key); exists {
-		return value, nil
+func getEnv(key string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		log.Fatal(fmt.Errorf("ENV: %s not present", key))
 	}
 
-	return "", fmt.Errorf("ENV: %s not present", key)
+	return value
 }
 
-func getEnvAsUint(key string) (uint, error) {
-	valueStr, err := getEnv(key)
+func getEnvPath(key string) string {
+	value := getEnv(key)
+
+	valueAbs, err := filepath.Abs(value)
 	if err != nil {
-		return 0, err
+		log.Fatal(fmt.Errorf("ENV: %s cannot calculate absolute path", key))
 	}
+
+	return valueAbs
+}
+
+func getEnvAsUint(key string) uint {
+	valueStr := getEnv(key)
 
 	value, err := strconv.ParseUint(valueStr, 10, 32)
 	if err != nil {
-		return 0, err
+		log.Fatal(err)
 	}
 
-	return uint(value), nil
+	return uint(value)
 }

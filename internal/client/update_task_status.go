@@ -10,11 +10,11 @@ import (
 type TrainingTaskStatus uint
 
 const (
-	Queued TrainingTaskStatus = iota
+	Failed TrainingTaskStatus = iota
+	Queued
 	Training
 	Benchmarking
 	Completed
-	Failed
 )
 
 type UpdateTaskStatusPayload struct {
@@ -22,7 +22,7 @@ type UpdateTaskStatusPayload struct {
 }
 
 func UpdateTaskStatus(cfg *config.Config, ttId uint, status TrainingTaskStatus) error {
-	path := fmt.Sprintf("/training_tasks/%d/status", ttId)
+	path := fmt.Sprintf("/training-tasks/%d/status", ttId)
 
 	statusPayload := UpdateTaskStatusPayload{
 		Status: status,

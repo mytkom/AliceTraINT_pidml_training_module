@@ -11,5 +11,6 @@
   "pool_hidden": 64,
   "num_heads": 2,
   "num_blocks": 2,
-  "start_lr": 2e-4
+  "start_lr": 2e-4,
+  "undersample": false
 }

@@ -19,7 +19,7 @@ type TrainingTaskResponse struct {
 }
 
 func GetQueuedTask(cfg *config.Config) (*TrainingTaskResponse, error) {
-	path := fmt.Sprintf("/training_machines/%d/training_task", cfg.MachineID)
+	path := fmt.Sprintf("/training-machines/%d/training-task", cfg.MachineID)
 
 	resp, body, err := sendRequest(cfg, "GET", path, nil, nil)
 	if err != nil {

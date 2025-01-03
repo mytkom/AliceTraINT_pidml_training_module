@@ -1,7 +1,8 @@
 {
     "internal-dpl-clock": "",
     "internal-dpl-aod-reader": {
-        "aod-file-private": "@/wd/alice/alice-pid-ml-scripts/run3/training/data/local_ao2ds_list.txt",
+        "aod-file-private": "@/wd/alice/AliceTraINT_pidml_training_module/data/local_list.txt",
+        "aod-max-io-rate": "0",
         "time-limit": "0",
         "orbit-offset-enumeration": "0",
         "orbit-multiplier-enumeration": "0",
@@ -10,54 +11,55 @@
         "step-value-enumeration": "1"
     },
     "internal-dpl-aod-spawner": "",
-    "internal-dpl-aod-index-builder": "",
     "timestamp-task": {
+        "fatalOnInvalidTimestamp": "false",
         "verbose": "false",
         "rct-path": "RCT\/Info\/RunInformation",
         "orbit-reset-path": "CTP\/Calib\/OrbitReset",
         "ccdb-url": "http:\/\/alice-ccdb.cern.ch",
-        "isRun2MC": "false"
+        "isRun2MC": "-1"
     },
-    "track-propagation": "",
+    "tracks-extra-v002-converter": {
+        "processV000ToV002": "true",
+        "processV001ToV002": "false"
+    },
+    "internal-dpl-aod-index-builder": "",
+    "m-f-t-tracks-spawner": "",
+    "tracks-extra-spawner": "",
     "bc-selection-task": {
         "triggerBcShift": "999",
         "ITSROFrameStartBorderMargin": "-1",
         "ITSROFrameEndBorderMargin": "-1",
         "TimeFrameStartBorderMargin": "-1",
         "TimeFrameEndBorderMargin": "-1",
+        "checkRunDurationLimits": "false",
         "processRun2": "false",
         "processRun3": "true"
     },
+    "tof-signal": {
+        "ccdb-url": "http:\/\/alice-ccdb.cern.ch",
+        "ccdb-timestamp": "-1",
+        "timeShiftCCDBPath": "",
+        "distanceForGoodMatch": "999",
+        "distanceForGoodMatchLowMult": "999",
+        "multThreshold": "0",
+        "enableQaHistograms": "false",
+        "processRun3": "true",
+        "processRun2": "false"
+    },
     "event-selection-task": {
-        "syst": "pp",
         "muonSelection": "0",
         "maxDiffZvtxFT0vsPV": "1",
-        "isMC": "true",
+        "isMC": "0",
+        "confSigmaBCforHighPtTracks": "4",
         "TimeIntervalForOccupancyCalculationMin": "-40",
         "TimeIntervalForOccupancyCalculationMax": "100",
-        "TimeBinsForOccupancyCalculation": {
-            "values": [
-                "-40",
-                "-20",
-                "0",
-                "25",
-                "50",
-                "75",
-                "100"
-            ]
-        },
-        "ReferenceOccupanciesInTimeBins": {
-            "values": [
-                "3000",
-                "1400",
-                "750",
-                "1000",
-                "1750",
-                "4000"
-            ]
-        },
         "TimeRangeVetoOnCollStandard": "10",
-        "TimeRangeVetoOnCollNarrow": "4",
+        "TimeRangeVetoOnCollNarrow": "2",
+        "FT0CamplPerCollCutVetoOnCollInTimeRange": "8000",
+        "EpsilonDistanceForVzDependentVetoTPC": "2.5",
+        "FT0CamplPerCollCutVetoOnCollInROF": "5000",
+        "EpsilonVzDiffVetoInROF": "0.300000012",
         "UseWeightsForOccupancyEstimator": "true",
         "processRun2": "false",
         "processRun3": "true"
@@ -78,51 +80,6 @@
         "processIU": "false",
         "processStandard": "true"
     },
-    "tpc-pid": {
-        "param-file": "",
-        "ccdb-url": "http:\/\/alice-ccdb.cern.ch",
-        "ccdbPath": "Analysis\/PID\/TPC\/Response",
-        "recoPass": "",
-        "ccdb-timestamp": "0",
-        "useNetworkCorrection": "false",
-        "autofetchNetworks": "true",
-        "skipTPCOnly": "false",
-        "networkPathLocally": "network.onnx",
-        "networkPathCCDB": "Analysis\/PID\/TPC\/ML",
-        "enableNetworkOptimizations": "true",
-        "networkSetNumThreads": "0",
-        "pid-full-el": "-1",
-        "pid-full-mu": "-1",
-        "pid-full-pi": "-1",
-        "pid-full-ka": "-1",
-        "pid-full-pr": "-1",
-        "pid-full-de": "-1",
-        "pid-full-tr": "-1",
-        "pid-full-he": "-1",
-        "pid-full-al": "-1",
-        "pid-tiny-el": "-1",
-        "pid-tiny-mu": "-1",
-        "pid-tiny-pi": "-1",
-        "pid-tiny-ka": "-1",
-        "pid-tiny-pr": "-1",
-        "pid-tiny-de": "-1",
-        "pid-tiny-tr": "-1",
-        "pid-tiny-he": "-1",
-        "pid-tiny-al": "-1",
-        "enableTuneOnDataTable": "-1",
-        "useNetworkEl": "1",
-        "useNetworkMu": "1",
-        "useNetworkPi": "1",
-        "useNetworkKa": "1",
-        "useNetworkPr": "1",
-        "useNetworkDe": "1",
-        "useNetworkTr": "1",
-        "useNetworkHe": "1",
-        "useNetworkAl": "1",
-        "networkBetaGammaCutoff": "0.449999988",
-        "processStandard": "true",
-        "processMcTuneOnData": "false"
-    },
     "multiplicity-table": {
         "doVertexZeq": "1",
         "fractionOfEvents": "2",
@@ -141,7 +98,8 @@
                 "FT0MultZeqs",
                 "FDDMultZeqs",
                 "PVMultZeqs",
-                "MultsExtraMC"
+                "MultMCExtras",
+                "MFTMults"
             ],
             "labels_cols": [
                 "Enable"
@@ -188,27 +146,70 @@
                 ],
                 [
                     "-1"
+                ],
+                [
+                    "-1"
                 ]
             ]
         },
         "ccdburl": "http:\/\/alice-ccdb.cern.ch",
         "ccdbpath": "Centrality\/Calibration",
+        "reconstructionPass": "",
         "produceHistograms": "false",
+        "min_pt_globaltrack": "0.150000006",
+        "max_pt_globaltrack": "1e+10",
+        "min_ncluster_its_globaltrack": "5",
+        "min_ncluster_itsib_globaltrack": "1",
         "processRun2": "false",
         "processRun3": "true",
         "processGlobalTrackingCounters": "false",
-        "processMC": "true"
+        "processMC": "true",
+        "processMC2Mults": "false"
     },
-    "tof-signal": {
+    "tpc-pid": {
+        "param-file": "",
         "ccdb-url": "http:\/\/alice-ccdb.cern.ch",
-        "ccdb-timestamp": "-1",
-        "timeShiftCCDBPath": "",
-        "distanceForGoodMatch": "999",
-        "distanceForGoodMatchLowMult": "999",
-        "multThreshold": "0",
-        "enableQaHistograms": "false",
-        "processRun3": "true",
-        "processRun2": "false"
+        "ccdbPath": "Analysis\/PID\/TPC\/Response",
+        "recoPass": "",
+        "ccdb-timestamp": "0",
+        "useNetworkCorrection": "false",
+        "autofetchNetworks": "true",
+        "skipTPCOnly": "false",
+        "networkPathLocally": "network.onnx",
+        "networkPathCCDB": "Analysis\/PID\/TPC\/ML",
+        "enableNetworkOptimizations": "true",
+        "networkSetNumThreads": "0",
+        "pid-full-el": "-1",
+        "pid-full-mu": "-1",
+        "pid-full-pi": "-1",
+        "pid-full-ka": "-1",
+        "pid-full-pr": "-1",
+        "pid-full-de": "-1",
+        "pid-full-tr": "-1",
+        "pid-full-he": "-1",
+        "pid-full-al": "-1",
+        "pid-tiny-el": "-1",
+        "pid-tiny-mu": "-1",
+        "pid-tiny-pi": "-1",
+        "pid-tiny-ka": "-1",
+        "pid-tiny-pr": "-1",
+        "pid-tiny-de": "-1",
+        "pid-tiny-tr": "-1",
+        "pid-tiny-he": "-1",
+        "pid-tiny-al": "-1",
+        "enableTuneOnDataTable": "-1",
+        "useNetworkEl": "1",
+        "useNetworkMu": "1",
+        "useNetworkPi": "1",
+        "useNetworkKa": "1",
+        "useNetworkPr": "1",
+        "useNetworkDe": "1",
+        "useNetworkTr": "1",
+        "useNetworkHe": "1",
+        "useNetworkAl": "1",
+        "networkBetaGammaCutoff": "0.449999988",
+        "processStandard": "true",
+        "processMcTuneOnData": "false"
     },
     "tof-event-time": {
         "inheritFromBaseTask": "true",
@@ -286,8 +287,8 @@
                 ]
             ]
         },
-        "processWSlice": "true",
-        "processWoSlice": "false"
+        "processWSlice": "false",
+        "processWoSlice": "true"
     },
     "tof-pid-beta": {
         "tof-expreso": "80",

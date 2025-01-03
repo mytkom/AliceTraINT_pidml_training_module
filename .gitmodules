@@ -1,0 +1,3 @@
+[submodule "pdi"]
+	path = pdi
+	url = git@github.com:mytkom/pdi.git
