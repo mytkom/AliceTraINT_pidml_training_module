@@ -1,3 +1,4 @@
 [submodule "pdi"]
 	path = pdi
-	url = git@github.com:mytkom/pdi.git
+	url = git@github.com:saganatt/pdi.git
+	branch = alibuild-python

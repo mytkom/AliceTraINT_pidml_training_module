@@ -51,7 +51,6 @@ func uploadRecursiveWalkForExtension(rootDir, extension string, cfg *config.Conf
 func main() {
 	cfg := config.LoadConfig()
 
-	// TODO: implement real training loop
 	// Mock loop
 	for {
 		duration := 5 * time.Second

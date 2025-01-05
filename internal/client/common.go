@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
-	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/logger"
 )
 
 func sendRequest(cfg *config.Config, method, path string, body interface{}, headers map[string]string) (*http.Response, []byte, error) {
-	log := logger.NewLogger()
-
 	url := fmt.Sprintf("%s%s", cfg.AlicetrainBaseUrl, path)
 
 	var requestBody io.Reader
@@ -64,8 +62,6 @@ func sendRequest(cfg *config.Config, method, path string, body interface{}, head
 }
 
 func sendMultipartRequest(cfg *config.Config, method, path string, formData map[string]io.Reader, headers map[string]string) (*http.Response, []byte, error) {
-	log := logger.NewLogger()
-
 	url := fmt.Sprintf("%s%s", cfg.AlicetrainBaseUrl, path)
 
 	var requestBody bytes.Buffer

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/client"
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
@@ -33,17 +34,48 @@ func handleError(cfg *config.Config, err error, ttId uint) {
 	}
 }
 
+func removeContents(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() {
 	cfg := config.LoadConfig()
 	trainingConfigPath := filepath.Join(cfg.DataDirPath, "train.json")
+	preprocessedRoot := filepath.Join(cfg.DataDirPath, scripts.PreprocessedAodFileName)
+	waitDuration := time.Duration(cfg.PoolingWaitSeconds) * time.Second
+
+	err := os.MkdirAll(cfg.DataDirPath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = os.MkdirAll(cfg.ResultsDirPath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
 	for {
-		err := os.MkdirAll(cfg.DataDirPath, os.ModePerm)
+		err = removeContents(cfg.DataDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
 
-		err = os.MkdirAll(cfg.ResultsDirPath, os.ModePerm)
+		err = removeContents(cfg.ResultsDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -54,6 +86,7 @@ func main() {
 		}
 
 		if tt == nil {
+			time.Sleep(waitDuration)
 			continue
 		}
 
@@ -64,19 +97,9 @@ func main() {
 		}
 		os.WriteFile(trainingConfigPath, jsonString, os.ModePerm)
 
-		err = scripts.DownloadFromGrid(cfg, tt.AODFiles)
-		if err != nil {
-			handleError(cfg, err, tt.ID)
-			continue
-		}
-
-		preprocessedRoot, err := scripts.PidMLProducer(cfg)
-		if err != nil {
-			handleError(cfg, err, tt.ID)
-			continue
-		}
-
 		training_commands := []scripts.Command{
+			scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
+			scripts.NewProducerRunner(cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandProcess, cfg, preprocessedRoot, trainingConfigPath),
 			scripts.NewPdiRunner(scripts.PdiCommandDataExploration, cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
