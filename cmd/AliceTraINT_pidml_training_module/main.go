@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"fmt"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/client"
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
@@ -56,7 +57,7 @@ func removeContents(dir string) error {
 func main() {
 	cfg := config.LoadConfig()
 	trainingConfigPath := filepath.Join(cfg.DataDirPath, "train.json")
-	preprocessedRoot := filepath.Join(cfg.DataDirPath, scripts.PreprocessedAodFileName)
+	preprocessedRoot := filepath.Join(cfg.DataDirPath, fmt.Sprintf("%s.root", scripts.PreprocessedAodFileName))
 	waitDuration := time.Duration(cfg.PoolingWaitSeconds) * time.Second
 
 	err := os.MkdirAll(cfg.DataDirPath, os.ModePerm)

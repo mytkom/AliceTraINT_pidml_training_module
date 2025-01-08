@@ -62,6 +62,9 @@ def do_train(data_dir, results_dir, device, config_common, data_preparation, con
             # save .pt file to data_dir
             torch.save(save_dict, pt_path)
 
+            # device cpu for export
+            device = torch.device("cpu")
+
             # load and prepare previously saved .pt model
             saved_model = torch.load(pt_path)
             model = AttentionModel(*saved_model["model_args"]).to(device)
@@ -70,7 +73,6 @@ def do_train(data_dir, results_dir, device, config_common, data_preparation, con
             model_with_sigmoid = nn.Sequential(model, nn.Sigmoid())
 
             # prepare dummy input
-            device = torch.device("cpu")
             data_preparation = FeatureSetPreparation()
             (train_loader, ) = data_preparation.prepare_dataloaders(1, 0, [Split.TRAIN])
             input_data, _, _ = next(iter(train_loader))
@@ -107,7 +109,7 @@ def train_main(cfg_file: str):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')    
 
     proposed_config = {
-        "data_preparation": FeatureSetPreparation(),
+        "data_preparation": FeatureSetPreparation(undersample=cfg["undersample"]),
         "config": {
             "embed_in": N_COLUMNS + 1,
             "embed_hidden": cfg["embed_hidden"],
@@ -251,7 +253,7 @@ def feature_importance(device, data_dir, results_dir):
         return model(new_in).cpu().detach().numpy()
 
     batch_size = 16 # for bigger number of entries kernel crashes, so here data is split into batches
-    batches = 5
+    batches = 50
     hide_progress_bars = False
 
     cols = prep.load_columns()
@@ -285,6 +287,7 @@ def feature_importance(device, data_dir, results_dir):
             file_name = f"{label}"
             title = f"{PARTICLES_DICT[target_code]}, entries: {data_count}"
             plot_and_save_beeswarm(result, save_dir, file_name, title)
+            plt.clf()
 
 def comparison_plots(device, data_dir, results_dir):
     benchmark_dir = os.path.join(results_dir, "benchmark")

@@ -21,23 +21,23 @@ RUN echo v20250103 > /etc/aliceimageversion && \
     useradd --uid 1000 --gid 1000 alice && \
     mkdir -p /wd && chown -R alice:alice /wd
 
-WORKDIR /wd
-USER alice
-
 # Copy and configure grid certificate
+WORKDIR /wd
+USER root
 COPY gridCertificate.p12 .
-RUN rm -rf ~/.globus && \
-    mkdir -p ~/.globus && \
-    openssl pkcs12 -clcerts -nokeys -in ./gridCertificate.p12 -out ~/.globus/usercert.pem -password pass: && \
-    openssl pkcs12 -nocerts -nodes -in ./gridCertificate.p12 -out ~/.globus/userkey.pem -password pass: && \
-    chmod 0400 ~/.globus/userkey.pem
+RUN rm -rf /home/alice/.globus && \
+    mkdir -p /home/alice/.globus && \
+    openssl pkcs12 -clcerts -nokeys -in ./gridCertificate.p12 -out /home/alice/.globus/usercert.pem -password pass: && \
+    openssl pkcs12 -nocerts -nodes -in ./gridCertificate.p12 -out /home/alice/.globus/userkey.pem -password pass: && \
+    chmod 0400 /home/alice/.globus/userkey.pem && chown -R alice /home/alice
 
 # Initialize O2Physics environment
+USER alice
 RUN mkdir alice
 WORKDIR /wd/alice
 RUN aliBuild init O2Physics@master && \
     rm -rf O2Physics && \
-    git clone git@github.com:mytkom/O2Physics.git && \
+    git clone https://github.com/mytkom/O2Physics.git && \
     cd O2Physics && git checkout pidml-training-module
 
 USER root
@@ -55,8 +55,9 @@ RUN usermod -aG users alice && \
 USER alice
 
 # Set up Python virtual environment
-COPY . /wd/alice/AliceTraINT_pidml_training_module
+RUN mkdir /wd/alice/AliceTraINT_pidml_training_module
 WORKDIR /wd/alice/AliceTraINT_pidml_training_module
+COPY --chown=default ./pdi ./pdi
 USER root
 RUN chown alice .
 USER alice
@@ -65,6 +66,7 @@ RUN python3 -m venv .venv && \
     .venv/bin/pip install uproot3
 ENV PATH="$HOME/go/bin:/usr/local/go/bin:$PATH"
 
-WORKDIR /wd/alice/AliceTraINT_pidml_training_module
+COPY --chown=alice . .
+USER alice
 RUN go build -o AliceTraINT_pidml_training_module ./cmd/AliceTraINT_pidml_training_module
 CMD [ "./AliceTraINT_pidml_training_module" ]
