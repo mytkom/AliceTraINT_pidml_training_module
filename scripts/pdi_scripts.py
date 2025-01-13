@@ -37,7 +37,6 @@ def do_train(data_dir, results_dir, device, config_common, data_preparation, con
 
     for target_code in TARGET_CODES:
         pt_path = os.path.join(pt_models_dir, f"{PARTICLES_DICT[target_code]}.pt")
-        onnx_path = os.path.join(onnx_models_dir, f"{PARTICLES_DICT[target_code]}.onnx")
         with wandb.init(project="pdi",
                         config=wandb_config,
                         name=PARTICLES_DICT[target_code],
@@ -62,12 +61,17 @@ def do_train(data_dir, results_dir, device, config_common, data_preparation, con
             # save .pt file to data_dir
             torch.save(save_dict, pt_path)
 
-            # device cpu for export
-            device = torch.device("cpu")
-
+    for target_code in TARGET_CODES:
+        pt_path = os.path.join(pt_models_dir, f"{PARTICLES_DICT[target_code]}.pt")
+        onnx_path = os.path.join(onnx_models_dir, f"{PARTICLES_DICT[target_code]}.onnx")
+        export_device = torch.device("cpu")
+        with wandb.init(project="pdi",
+                        config=wandb_config,
+                        name=PARTICLES_DICT[target_code],
+                        anonymous="allow") as run:
             # load and prepare previously saved .pt model
             saved_model = torch.load(pt_path)
-            model = AttentionModel(*saved_model["model_args"]).to(device)
+            model = AttentionModel(*saved_model["model_args"]).to(export_device)
             model.thres = saved_model["model_thres"]
             model.load_state_dict(saved_model["state_dict"])
             model_with_sigmoid = nn.Sequential(model, nn.Sigmoid())
@@ -76,7 +80,7 @@ def do_train(data_dir, results_dir, device, config_common, data_preparation, con
             data_preparation = FeatureSetPreparation()
             (train_loader, ) = data_preparation.prepare_dataloaders(1, 0, [Split.TRAIN])
             input_data, _, _ = next(iter(train_loader))
-            dummy_input = input_data.to(device)
+            dummy_input = input_data.to(export_device)
             print("Dummy input shape: ", dummy_input.shape)
 
             # export to ONNX
@@ -106,10 +110,17 @@ def train_main(cfg_file: str):
         cfg = json.load(f)
 
     torch.multiprocessing.set_sharing_strategy('file_system')
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')    
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    print("Device used for training: ", device)
+
+    if "undersample" in cfg:
+        undersample=cfg["undersample"]
+    else:
+        undersample = False
 
     proposed_config = {
-        "data_preparation": FeatureSetPreparation(undersample=cfg["undersample"]),
+        "data_preparation": FeatureSetPreparation(undersample=undersample),
         "config": {
             "embed_in": N_COLUMNS + 1,
             "embed_hidden": cfg["embed_hidden"],
@@ -167,7 +178,11 @@ def process_main(input_file, cfg_file):
 
     print("Preparing data for training")
     # Data preparation
-    prep = FeatureSetPreparation(undersample=cfg["undersample"])
+    if "undersample" in cfg:
+        undersample=cfg["undersample"]
+    else:
+        undersample = False
+    prep = FeatureSetPreparation(undersample=undersample)
     prep.prepare_data(csv_filepath)
     prep.save_data(os.path.join(data_dir, f"processed/feature_set/run{RUN}"))
 

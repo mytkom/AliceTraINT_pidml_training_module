@@ -18,6 +18,7 @@ const (
 	LocalListName      = "local_list.txt"
 	RawAodsSUbdir      = "raw_ao2ds"
 	DownloadScriptName = "download-from-grid.sh"
+	GenerateRunScriptName = "generate-run-pidml-producer-script.py"
 )
 
 type GridDownloadRunner struct {
@@ -29,6 +30,7 @@ type GridDownloadRunner struct {
 	LocalListPath  string
 	AodsOutputDir  string
 	ScriptPath     string
+	PIDMLProducerGenerateScript string
 }
 
 func NewGridDownloadRunner(cfg *config.Config, aodFiles []client.AODFile) *GridDownloadRunner {
@@ -41,6 +43,7 @@ func NewGridDownloadRunner(cfg *config.Config, aodFiles []client.AODFile) *GridD
 		LocalListPath:  filepath.Join(cfg.DataDirPath, LocalListName),
 		AodsOutputDir:  filepath.Join(cfg.DataDirPath, RawAodsSUbdir),
 		ScriptPath:     filepath.Join(cfg.ScriptsDirPath, DownloadScriptName),
+		PIDMLProducerGenerateScript: filepath.Join(cfg.ScriptsDirPath, GenerateRunScriptName),
 	}
 }
 
@@ -96,9 +99,11 @@ func (r *GridDownloadRunner) Run() error {
 	defer localList.Close()
 
 	scanner := bufio.NewScanner(remoteFile)
+	lastLocalPath := ""
 	for scanner.Scan() {
 		remoteURL := scanner.Text()
 		localPath := filepath.Join(r.AodsOutputDir, strings.ReplaceAll(strings.TrimPrefix(remoteURL, "/"), "/", "-"))
+		lastLocalPath = localPath
 
 		sourcePath := filepath.Join(r.AodsOutputDir, remoteURL)
 		err = os.Rename(sourcePath, localPath)
@@ -110,6 +115,17 @@ func (r *GridDownloadRunner) Run() error {
 		if err != nil {
 			return fmt.Errorf("failed to write to local list file: %w", err)
 		}
+	}
+
+	pythonVenvBin := filepath.Join(r.VenvDirPath, "bin/python3")
+	pidMlProducerSubscriptPath := filepath.Join(r.DataDirPath, ProducerRunSubscriptName)
+	cmd = exec.Command(pythonVenvBin, r.PIDMLProducerGenerateScript, lastLocalPath, pidMlProducerSubscriptPath)
+	cmd.Stdout = multiWriterOut
+	cmd.Stderr = multiWriterErr
+
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("command execution failed: %w", err)
 	}
 
 	if err := scanner.Err(); err != nil {

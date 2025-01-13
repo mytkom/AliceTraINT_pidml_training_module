@@ -69,7 +69,7 @@ func UploadTaskResult(cfg *config.Config, ttId uint, ttr *TaskResultPayload) err
 		return fmt.Errorf("invalid task result")
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("internal server error")
 	}
 

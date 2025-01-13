@@ -20,8 +20,8 @@
         "isRun2MC": "-1"
     },
     "tracks-extra-v002-converter": {
-        "processV000ToV002": "true",
-        "processV001ToV002": "false"
+        "processV000ToV002": "false",
+        "processV001ToV002": "true"
     },
     "internal-dpl-aod-index-builder": "",
     "m-f-t-tracks-spawner": "",

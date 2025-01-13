@@ -14,6 +14,7 @@ import (
 const (
 	PreprocessedAodFileName = "preprocessed_ao2ds"
 	ProducerRunScriptName   = "run-pidml-producer.sh"
+	ProducerRunSubscriptName  = "run-pidml-producer.sh"
 	ProducerConfigFileName  = "ml-mc-config.json"
 )
 
@@ -36,6 +37,7 @@ func NewProducerRunner(cfg *config.Config) *ProducerRunner {
 func (p *ProducerRunner) Run() error {
 	localListPath := filepath.Join(p.DataDirPath, "local_list.txt")
 	pidMlProducerScriptPath := filepath.Join(p.ScriptsDirPath, ProducerRunScriptName)
+	pidMlProducerSubscriptPath := filepath.Join(p.DataDirPath, ProducerRunSubscriptName)
 	pidMlProducerConfigPath := filepath.Join(p.ScriptsDirPath, ProducerConfigFileName)
 
 	logErr, err := os.OpenFile(p.LogErrPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
@@ -51,12 +53,13 @@ func (p *ProducerRunner) Run() error {
 
 	preprocessedRootName := "preprocessed_ao2ds"
 	alienvCommand := fmt.Sprintf(
-		"alienv setenv O2Physics/latest -c %s %s %s %s %s",
+		"alienv setenv O2Physics/latest -c %s %s %s %s %s %s",
 		pidMlProducerScriptPath,
 		pidMlProducerConfigPath,
 		p.DataDirPath,
 		localListPath,
 		preprocessedRootName,
+		pidMlProducerSubscriptPath,
 	)
 	pidMlProducerCmd := exec.Command("bash", "-c", alienvCommand)
 	pidMlProducerCmd.Stdout = logOut
