@@ -108,7 +108,7 @@ func main() {
 		err = runCommands(training_commands, tt.ID)
 		if err != nil {
 			handleError(cfg, err, tt.ID)
-			break
+			continue
 		}
 
 		err = client.UpdateTaskStatus(cfg, tt.ID, client.Benchmarking)
