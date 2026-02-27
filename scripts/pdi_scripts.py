@@ -5,473 +5,223 @@ import sys
 import os
 import json
 from pathlib import Path
-from matplotlib import pyplot as plt
-import uproot3
+import wandb
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import torch
-import torch.nn as nn
-import pandas as pd
-import onnx
-import wandb
 
+# Setup for server/headless environments
+matplotlib.use('Agg')
+os.environ["WANDB_MODE"] = "disabled"
 
-def get_env_path(var_name, default):
-    path = os.getenv(var_name, default)
-    if not os.path.exists(path):
-        raise ValueError(f"Environment variable {var_name} points to a non-existent path: {path}")
-    return path
+# --- PATH RESOLUTION ---
+SCRIPTS_DIR = Path(os.path.abspath(__file__)).parent
+PROJECT_ROOT = SCRIPTS_DIR.parent
 
-def do_train(data_dir, results_dir, device, config_common, data_preparation, config, model_class, model_args):
-    pt_models_dir = os.path.join(data_dir, "models")
-    os.makedirs(pt_models_dir, exist_ok=True)
+pdi_dir = os.getenv("PDI_DIR")
+if not pdi_dir:
+    pdi_dir = str(PROJECT_ROOT / "pdi" / "src")
 
-    onnx_models_dir = os.path.join(results_dir, "models")
-    os.makedirs(onnx_models_dir, exist_ok=True)
+if pdi_dir not in sys.path:
+    sys.path.append(pdi_dir)
 
-    wandb_config = {**config_common, **config}
+# --- PDI IMPORTS ---
+try:
+    from pdi.config import Config, AttentionConfig
+    from pdi.data.data_preparation import DataPreparation
+    from pdi.engines import build_engine
+    from pdi.constants import PART_NAME_TO_TARGET_CODE, TARGET_CODES, TARGET_CODE_TO_PART_NAME
+    from pdi.data.types import Split, InputTarget
+    from pdi.data.data_exploration import plot_cor_matrix, plot_group_ratio, explain_model, plot_and_save_beeswarm
+    from pdi.visualise import plot_precision_recall_comparison, plot_metrics_vs_pt_comparison
+    from pdi.models import build_model
+except ImportError as e:
+    print(f"ERROR: Cannot import PDI from {pdi_dir}: {e}")
+    sys.exit(1)
 
-    train_loader, val_loader = data_preparation.prepare_dataloaders(
-        wandb_config["bs"], NUM_WORKERS, [Split.TRAIN, Split.VAL])
+def map_config(old_cfg, input_file_path):
+    """Maps server JSON configuration to PDI Config object."""
+    config = Config()
+    config.data.is_run_3 = True
+    config.data.subset_size = old_cfg.get("subset_size")
+    config.sim_dataset_paths = [str(Path(input_file_path).absolute())]
+    
+    config.model.architecture = "attention"
+    config.model.attention = AttentionConfig(
+        embed_hidden_layers=[old_cfg.get("embed_hidden", 128)],
+        embed_dim=old_cfg.get("d_model", 32),
+        encoder_ff_hidden=old_cfg.get("ff_hidden", 128),
+        mlp_hidden_layers=[64, 32, 16],
+        pool_hidden_layers=[old_cfg.get("pool_hidden", 64)],
+        num_heads=old_cfg.get("num_heads", 2),
+        num_blocks=old_cfg.get("num_blocks", 2),
+        dropout=old_cfg.get("dropout", 0.1)
+    )
+    
+    config.training.batch_size = old_cfg.get("bs", 512)
+    config.training.max_epochs = old_cfg.get("max_epochs", 40)
+    config.training.start_lr = old_cfg.get("start_lr", 0.001)
+    config.training.device = "cuda" if old_cfg.get("use_gpu") else "cpu"
+    config.training.undersample_missing_detectors = old_cfg.get("undersample", False)
+    
+    config.training.num_workers = 0
+    config.validation.num_workers = 0
+    return config
 
-    thresholds_df_list = []
+def get_root_file():
+    """Finds the main data file."""
+    data_dir = PROJECT_ROOT / "data"
+    pref = data_dir / "preprocessed_ao2ds.root"
+    if pref.exists(): return str(pref.absolute())
+    found = list(data_dir.glob("*.root"))
+    if not found: sys.exit(1)
+    return str(found[0].absolute())
 
-    for target_code in TARGET_CODES:
-        pt_path = os.path.join(pt_models_dir, f"{PARTICLES_DICT[target_code]}.pt")
-        with wandb.init(project="pdi",
-                        config=wandb_config,
-                        name=PARTICLES_DICT[target_code],
-                        anonymous="allow") as run:
-            pos_weight = torch.tensor(1.0).to(device)
-            wandb.log({"pos_weight": pos_weight.item()})
+# --- COMMANDS ---
 
-            model_init_args = model_args(data_preparation)
-            model = model_class(*model_init_args).to(device)
-
-            train(model, target_code, device, train_loader, val_loader,
-                  pos_weight)
-
-            save_dict = {
-                "state_dict": model.state_dict(),
-                "model_args": model_init_args,
-                "model_thres": model.thres
-            }
-
-            thresholds_df_list.append(pd.DataFrame([(target_code, model.thres)], columns=["pdgPid", "threshold"]))
-
-            # save .pt file to data_dir
-            torch.save(save_dict, pt_path)
-
-    for target_code in TARGET_CODES:
-        pt_path = os.path.join(pt_models_dir, f"{PARTICLES_DICT[target_code]}.pt")
-        onnx_path = os.path.join(onnx_models_dir, f"{PARTICLES_DICT[target_code]}.onnx")
-        export_device = torch.device("cpu")
-        with wandb.init(project="pdi",
-                        config=wandb_config,
-                        name=PARTICLES_DICT[target_code],
-                        anonymous="allow") as run:
-            # load and prepare previously saved .pt model
-            saved_model = torch.load(pt_path)
-            model = AttentionModel(*saved_model["model_args"]).to(export_device)
-            model.thres = saved_model["model_thres"]
-            model.load_state_dict(saved_model["state_dict"])
-            model_with_sigmoid = nn.Sequential(model, nn.Sigmoid())
-
-            # prepare dummy input
-            data_preparation = FeatureSetPreparation()
-            (train_loader, ) = data_preparation.prepare_dataloaders(1, 0, [Split.TRAIN])
-            input_data, _, _ = next(iter(train_loader))
-            dummy_input = input_data.to(export_device)
-            print("Dummy input shape: ", dummy_input.shape)
-
-            # export to ONNX
-            input_name = 'input'
-            output_name = 'output'
-            torch.onnx.export(model_with_sigmoid, dummy_input, onnx_path, 
-                              export_params=True,
-                              opset_version=14,
-                              do_constant_folding=True,
-                              input_names=[input_name],
-                              output_names=[output_name],
-                              dynamic_axes={input_name: {0: 'batch size'}})
-
-            # verify exported ONNX
-            onnx_model = onnx.load(onnx_path)
-            onnx.checker.check_model(onnx_model)
-
-    thresholds_df = pd.concat(thresholds_df_list, ignore_index=True)
-    thresholds_df.to_csv(os.path.join(pt_models_dir, "thresholds.csv"), index=False)
-
-def train_main(cfg_file: str):
-    results_dir = get_env_path("RESULTS_DIR", "results")
-    data_dir = get_env_path("DATA_DIR", "data")
-
-    print("CWD: ", os.getcwd())
-    with open(cfg_file) as f:
-        cfg = json.load(f)
-
-    torch.multiprocessing.set_sharing_strategy('file_system')
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-    print("Device used for training: ", device)
-
-    if "undersample" in cfg:
-        undersample=cfg["undersample"]
-    else:
-        undersample = False
-
-    proposed_config = {
-        "data_preparation": FeatureSetPreparation(undersample=undersample),
-        "config": {
-            "embed_in": N_COLUMNS + 1,
-            "embed_hidden": cfg["embed_hidden"],
-            "d_model": cfg["d_model"],
-            "ff_hidden": cfg["ff_hidden"],
-            "pool_hidden": cfg["pool_hidden"],
-            "num_heads": cfg["num_heads"],
-            "num_blocks": cfg["num_blocks"],
-            "start_lr": cfg["start_lr"],
-        },
-        "model_class": AttentionModel,
-        "model_args": lambda d_prep: [
-            wandb.config.embed_in,
-            wandb.config.embed_hidden,
-            wandb.config.d_model,
-            wandb.config.ff_hidden,
-            wandb.config.pool_hidden,
-            wandb.config.num_heads,
-            wandb.config.num_blocks,
-            nn.ReLU,
-            wandb.config.dropout,
-        ],
-    }
-
-    print("Starting training of Neural Networks:")
-    do_train(data_dir, results_dir, device, cfg, **proposed_config)
-
-def process_main(input_file, cfg_file):
-    data_dir = get_env_path("DATA_DIR", "data")
-    print("CWD: ", os.getcwd())
-    with open(cfg_file) as f:
-        cfg = json.load(f)
-
-    # ROOT -> CSV
-    print("Converting preprocessed ROOT file to CSV file")
-    dataframes = []
-    file = uproot3.open(input_file)
-    for dirname in file:
-        dirname = dirname.decode("utf-8")
-        pure_dirname = dirname.split(";")[0]
-        if pure_dirname.startswith("DF_"):
-            tree_data = file["%s/O2pidtracksmcml" % (dirname)].pandas.df()
-            dataframes.append(tree_data)
-
-    data = pd.concat(dataframes, ignore_index=True)
-    print(data.head())
-    print(data.columns)
-
-    # TRDPattern is uint8, so cannot use NaN in producer -> need to preprocess it here
-    data["fTRDPattern"].mask(np.isclose(data["fTRDPattern"], 0), inplace=True)
-    data = data[data["fTPCSignal"] > 0]
-    csv_filepath = os.path.join(data_dir, f"{Path(input_file).stem}.csv")
-    print("Saving CSV file to: ", csv_filepath)
-    data.to_csv(csv_filepath)
-
-    print("Preparing data for training")
-    # Data preparation
-    if "undersample" in cfg:
-        undersample=cfg["undersample"]
-    else:
-        undersample = False
-    prep = FeatureSetPreparation(undersample=undersample)
-    prep.prepare_data(csv_filepath)
-    prep.save_data(os.path.join(data_dir, f"processed/feature_set/run{RUN}"))
+def process_main(input_file_arg, cfg_file_arg):
+    print(f"--- [PROCESS] Starting ---")
+    with open(cfg_file_arg, 'rb') as f: old_cfg = json.load(f)
+    config = map_config(old_cfg, input_file_arg)
+    prep = DataPreparation(config.data, config.sim_dataset_paths, seed=42)
+    prep.prepare_data()
 
 def data_exploration_main():
-    results_dir = get_env_path("RESULTS_DIR", "results")
-    save_dir = os.path.join(results_dir, "data-exploration")
+    print(f"--- [DATA-EXPLORATION] Generating plots ---")
+    results_root = PROJECT_ROOT / "results"
+    results_root.mkdir(parents=True, exist_ok=True)
     
-    # general statistics
-    splits = [Split.TRAIN]
-    prep = FeatureSetPreparation()
-    prep._load_preprocessed_data(splits)
-    ungrouped_data = prep.data_to_ungrouped_df(splits)
-    print(ungrouped_data.shape)
-    classes = ungrouped_data[TARGET_COLUMN].value_counts()
-    print(classes)
-    num_chosen = classes[TARGET_CODES].sum()
-    print(num_chosen / ungrouped_data.shape[0])
-    nulls = ungrouped_data.isnull().sum()
-    print(nulls)
-    all_nulls = ungrouped_data.isnull().any(axis=1).sum()
-    print(all_nulls)
-    print(all_nulls/ungrouped_data.shape[0])
-
-    # plot missing detectors distribution
-    null_rows = ungrouped_data.isnull().value_counts()
-    columns = ungrouped_data.columns
-    missing_values = [columns[list(index)] for index in null_rows.index]
-    missing_detectors = []
-    for mv in missing_values:
-        dets = columns_to_detectors(mv)
-        dets = [d.name for d in dets]
-        missing_detectors.append(dets)
-    print(missing_detectors, null_rows.values)
-    plt.pie(null_rows)
-    labels = ["Missing detectors: " + ", ".join(v) for i, v in enumerate(missing_detectors)]
-    print(labels)
-    plt.legend(
-        [l + f": {100*null_rows[i]/sum(null_rows):.3f}%" for i, l in enumerate(labels)]
-        , loc="lower right", bbox_to_anchor=(2.2, -0.5), prop={'size': 20}
-    )
-    os.makedirs(save_dir, exist_ok=True)
-    plt.savefig(os.path.join(save_dir, "missing_dets.png"), bbox_inches = "tight")
-    plt.clf()
-
-    # plot class distribution
-    particles = [classes[i] for i in classes.index if i in PARTICLES_DICT]
-    labels_percent = [
-        PARTICLES_DICT[i] + f": {100*classes[i]/sum(classes):.3f}%" for i in classes.index if i in PARTICLES_DICT
-    ]
-    plt.pie(particles)
-    plt.legend(
-        labels_percent, loc="lower right", bbox_to_anchor=(2.2, -0.5), prop={'size': 20}
-    )
-    plt.savefig(os.path.join(save_dir, "particles.png"), bbox_inches = "tight")
-    plt.clf()
-
-    # plot particle distribution to pt
-    dir_vs_pt_dir = os.path.join(save_dir, "distribution_vs_pt")
-    os.makedirs(dir_vs_pt_dir, exist_ok=True)
-    for target_code in TARGET_CODES:
-        plot_particle_distribution(target_code, prep, splits, "fPt", f"{PARTICLES_DICT[target_code]}", dir_vs_pt_dir)
+    prep = DataPreparation(Config().data, [get_root_file()], seed=42)
+    data = prep.get_prepared_data([Split.TRAIN])[Split.TRAIN]
     
-    # plot correlation matrices
-    cor_save_dir = os.path.join(save_dir, "correlation_matrices")
-    os.makedirs(cor_save_dir, exist_ok=True)
-    plot_cor_matrix(ungrouped_data, "all_particles", cor_save_dir)
-    for target_code in TARGET_CODES:
-        one_particle = ungrouped_data.loc[ungrouped_data[TARGET_COLUMN] == target_code]
-        title = PARTICLES_DICT[target_code]
-        plot_cor_matrix(one_particle, title, cor_save_dir)
+    # Merge groups
+    df_all = pd.concat([v[InputTarget.INPUT].assign(fPdgCode=v[InputTarget.TARGET]) for v in data.values()])
+    
+    # 1. Particles Ratio (Original Name)
+    plot_group_ratio([TARGET_CODE_TO_PART_NAME[c] for c in TARGET_CODES], 
+                     [df_all["fPdgCode"] == c for c in TARGET_CODES]).savefig(results_root / "particles.png")
+    
+    # 2. Missing Detectors Ratio (Original Name)
+    det_cols = ["fTPCSignal", "fTOFSignal", "fTRDPattern"]
+    det_labels = ["TPC", "TOF", "TRD"]
+    det_conds = [df_all[c] > 0 for c in det_cols]
+    plot_group_ratio(det_labels, det_conds, title="Detector Coverage").savefig(results_root / "missing_dets.png")
+    
+    # 3. Correlation Matrices
+    plot_cor_matrix(df_all, "All Particles").savefig(results_root / "all_particles_correlation.png")
+    for code in TARGET_CODES:
+        part_name = TARGET_CODE_TO_PART_NAME[code]
+        df_part = df_all[df_all["fPdgCode"] == code]
+        if not df_part.empty:
+            plot_cor_matrix(df_part, part_name).savefig(results_root / f"{part_name}_correlation.png")
 
-def feature_importance(device, data_dir, results_dir):
-    split = Split.TEST
-    prep = FeatureSetPreparation()
-    prep._try_load_preprocessed_data([split])
-    groups = prep.data_to_df_dict(split)
-    model_load_dir = os.path.join(data_dir, f"models")
-    model_class = AttentionModel
-
-    # wrapper for model, explainers don't allow passing tensors
-    def predict(input_data):
-        new_in = torch.tensor(input_data).to(device)
-        return model(new_in).cpu().detach().numpy()
-
-    batch_size = 16 # for bigger number of entries kernel crashes, so here data is split into batches
-    batches = 50
-    hide_progress_bars = False
-
-    cols = prep.load_columns()
-
-    particles_to_explain = TARGET_CODES
-
-    if not particles_to_explain:
-        particles_to_explain = TARGET_CODES
-    else:
-        particles_to_explain = [p for p in particles_to_explain if p in TARGET_CODES]
-
-    for target_code in particles_to_explain:
-        print(PARTICLES_DICT[target_code])
-        model_name = f"{PARTICLES_DICT[target_code]}.pt"
-        load_path = os.path.join(model_load_dir, model_name)
-        saved_model = torch.load(load_path, map_location=torch.device("cpu"))
-        model = model_class(*saved_model["model_args"]).to(device)
-        model.load_state_dict(saved_model["state_dict"])
-
-        for key, group in groups.items():
-            detectors = detector_unmask(key)
-            detectors = [d.name for d in detectors]
-            label = "_".join(detectors)
-            print(label)
-
-            result, data_count = explain_model(predict, group, batch_size, batches, hide_progress_bars)
-            result.feature_names = cols
-
-            save_dir = f"{results_dir}/feature_importance/{PARTICLES_DICT[target_code]}"
-
-            file_name = f"{label}"
-            title = f"{PARTICLES_DICT[target_code]}, entries: {data_count}"
-            plot_and_save_beeswarm(result, save_dir, file_name, title)
-            plt.clf()
-
-def comparison_plots(device, data_dir, results_dir):
-    benchmark_dir = os.path.join(results_dir, "benchmark")
-    particle_names = [PARTICLES_DICT[i] for i in TARGET_CODES]
-    metrics = ["precision", "recall", "f1"]
-    data_types = ["all", "complete_only"]
-    experiment_name = "Proposed"
-    exp_dict = {
-        "model_class": AttentionModel,
-        "data": {
-            "all": FeatureSetPreparation,
-             "complete_only": lambda: FeatureSetPreparation(complete_only=True),
-        }
-    }
-    model_names = [experiment_name]
+def train_main(cfg_file_arg):
+    print(f"--- [TRAIN] Starting ---")
+    with open(cfg_file_arg, 'rb') as f: old_cfg = json.load(f)
+    config = map_config(old_cfg, get_root_file())
+    thresholds_data = []
+    
+    for part_name, target_code in PART_NAME_TO_TARGET_CODE.items():
+        if target_code not in TARGET_CODES: continue
+        print(f"\n>> Training {part_name}...")
+        wandb.init(project="cern", name=part_name, mode="disabled")
+        engine = build_engine(config, target_code)
+        engine.train()
         
-    metric_results = pd.DataFrame(
-        index=pd.MultiIndex.from_product(
-            [particle_names, model_names], names=["particle", "model"]
-            ),
-        columns=pd.MultiIndex.from_product(
-            [data_types, metrics], names=["data", "metric"]
-            ),
-        )
-    
-    target_codes = TARGET_CODES
-    prediction_data = {}
-    for target_code in target_codes:
-        print(f"Target: {target_code}")
-        particle_name = PARTICLES_DICT[target_code]
-        prediction_data[target_code] = {}
-        print(f"Experiment: {experiment_name}")
-        if exp_dict["model_class"] != Traditional:
-            load_path = f"{data_dir}/models/{particle_name}.pt"
-            saved_model = torch.load(load_path, map_location=torch.device("cpu"))
-            model = exp_dict["model_class"](*saved_model["model_args"]).to(device)
-            model.thres = saved_model["model_thres"]
-            model.load_state_dict(saved_model["state_dict"])
-    
-        batch_size = 512
-    
-        prediction_data[target_code][experiment_name] = {}
-        for data_type, data_prep in exp_dict["data"].items():
-            print(f"Data type: {data_type}")
-            test_loader, = data_prep().prepare_dataloaders(batch_size, NUM_WORKERS, [Split.TEST])
-            
-            if exp_dict["model_class"] != Traditional:
-                model_thres = model.thres
-                print(model_thres)
-                predictions, targets, add_data, _ = get_predictions_data_and_loss(model, test_loader, device)
-                selected = predictions > model.thres
-            else:
-                model_thres = 3.0
-                predictions, targets, add_data = get_nsigma_predictions_data(test_loader, target_code)
-                is_sign_correct = add_data["fSign"] == np.sign(target_code)
-                selected = predictions < model_thres
-                selected = np.where(is_sign_correct, selected, 0)
-    
-            binary_targets = targets == target_code
-    
-            true_positives = int(np.sum(selected & binary_targets))
-            print("TP: ", true_positives)
-            selected_positives = int(np.sum(selected))
-            print("SP: ", selected_positives)
-            positives = int(np.sum(binary_targets))
-            print("P: ", positives)
-    
-            precision, recall, _, _ = calculate_precision_recall(true_positives, selected_positives, positives)
-            f1 = 2 * precision * recall / (precision + recall + np.finfo(float).eps)
-    
-            metric_results.loc[(particle_name, experiment_name), data_type] = precision, recall, f1
-            
-            prediction_data[target_code][experiment_name][data_type] = {
-                "targets": binary_targets,
-                "predictions": predictions,
-                "momentum": add_data[Additional.fPt.name],
-                "threshold": model_thres,
-                "selected": selected
-            }
-
-    metric_results_path = os.path.join(results_dir, "comparison_metrics.csv")
-    metric_results.to_csv(metric_results_path)
-    
-    p_min, p_max = P_RANGE
-    p_range = np.linspace(p_min, p_max, P_RESOLUTION)
-    intervals = list(zip(p_range[:-1], p_range[1:]))
-    
-    for target_code in target_codes:
-        particle_name = PARTICLES_DICT[target_code]
-        print(f"Plotting {particle_name} for code {target_code}")
-        tc_prediction_data = prediction_data[target_code]
-        for data_type in data_types:
-            print(f"Data type {data_type}")
-            data = {}
-            for exp_name, exp_dict in tc_prediction_data.items():
-                if data_type in exp_dict:
-                    data[exp_name] = exp_dict[data_type]
-            
-            save_dir = os.path.join(benchmark_dir, f"model_comparison/run{RUN}/{data_type}/{particle_name}")
-            os.makedirs(save_dir, exist_ok=True)
-            plot_purity_comparison(particle_name, data, intervals, save_dir)
-            plot_efficiency_comparison(particle_name, data, intervals, save_dir)
-            plot_precision_recall_comparison(particle_name, data, save_dir)
+        # Collect threshold for thresholds.csv
+        meta_path = Path(engine._base_dir) / "model_weights" / "metadata.json"
+        if meta_path.exists():
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+                thresholds_data.append({"pdgPid": target_code, "threshold": meta["threshold"]})
+        wandb.finish()
+        
+    if thresholds_data:
+        pd.DataFrame(thresholds_data).to_csv(PROJECT_ROOT / "results" / "thresholds.csv", index=False)
 
 def benchmark_main():
-    data_dir = get_env_path("DATA_DIR", "data")
-    results_dir = get_env_path("RESULTS_DIR", "results")
-
-    torch.multiprocessing.set_sharing_strategy('file_system')
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')    
+    print(f"--- [BENCHMARK] Starting ---")
+    results_root = PROJECT_ROOT / "results"
+    any_config = next(results_root.rglob("config.json"), None)
+    if not any_config: return
+    with open(any_config, 'rb') as f: config = Config.from_dict(json.load(f))
+    config.training.device = "cpu"
+    prep = DataPreparation(config.data, config.sim_dataset_paths, seed=42)
     
-    comparison_plots(device, data_dir, results_dir)
-    feature_importance(device, data_dir, results_dir)
+    all_metrics = []
+    for part_name, target_code in PART_NAME_TO_TARGET_CODE.items():
+        if target_code not in TARGET_CODES: continue
+        part_dir = next(results_root.rglob(part_name), None)
+        if not part_dir: continue
+        runs = sorted(list(part_dir.glob("run_*")))
+        if not runs: continue
+        run_dir = runs[-1]
+        
+        engine = build_engine(config, target_code, base_dir=str(run_dir))
+        test_res = engine.test()
+        
+        # Robust data sync
+        df = engine._test_dl.unwrap()
+        min_l = min(len(df), len(test_res.predictions))
+        targets, pt, preds = df["fPdgCode"][:min_l], df["fPt"][:min_l], test_res.predictions[:min_l]
+        test_res.targets = (targets == target_code).astype(int)
+        test_res.predictions = preds.squeeze()
+
+        # 1. PR Curve (Original style name)
+        plot_precision_recall_comparison({"Model": test_res}, mask=np.ones(len(targets), dtype=bool)).savefig(results_root / f"{part_name}_precision_recall.png")
+        
+        # 2. Efficiency / Purity vs Pt (Original style names)
+        for fig, name in plot_metrics_vs_pt_comparison({"Model": test_res}, pt.to_numpy()):
+            clean_name = "p_purity_optimized_threshold" if "purity" in name else "p_efficiency_optimized_threshold"
+            fig.savefig(results_root / f"{part_name}_{clean_name}.png")
+
+        # 3. Population vs Pt (distribution_vs_pt replacement)
+        pt_bins = [0, 1, 2, 3, 5]
+        pt_labels = [f"{pt_bins[i]}-{pt_bins[i+1]} GeV/c" for i in range(len(pt_bins)-1)]
+        pt_conds = [(pt >= pt_bins[i]) & (pt < pt_bins[i+1]) for i in range(len(pt_bins)-1)]
+        plot_group_ratio(pt_labels, pt_conds, title=f"Pt Distribution for {part_name}").savefig(results_root / f"{part_name}_distribution_vs_pt.png")
+
+        # 4. SHAP (Original style name)
+        model = build_model(config.model, group_ids=prep.get_group_ids())
+        model.load_state_dict(torch.load(run_dir / "model_weights" / "best.pt", map_location="cpu"))
+        model.eval()
+        def pred_f(x):
+            if x.ndim == 1: x = x.reshape(1, -1)
+            with torch.no_grad():
+                out = model(torch.tensor(x, dtype=torch.float32)).numpy()
+                return out.reshape(-1, 1)
+
+        test_data = prep.get_prepared_data([Split.TEST])[Split.TEST]
+        columns = pd.read_json(run_dir / "columns_for_training.json")["columns_for_training"].tolist()
+        for gid, d in test_data.items():
+            if not d[InputTarget.INPUT].empty:
+                sv, _ = explain_model(pred_f, d[InputTarget.INPUT], batch_size=16, batches=5)
+                sv.feature_names = columns
+                plot_and_save_beeswarm(sv, str(results_root), f"{part_name}_feature_importance_GID_{gid}.png", f"SHAP: {part_name} GID {gid}")
+
+        metrics_dict = test_res.test_metrics.to_dict()
+        metrics_dict['particle'] = part_name
+        all_metrics.append(metrics_dict)
+
+    if all_metrics:
+        pd.DataFrame(all_metrics).to_csv(results_root / "comparison_metrics.csv", index=False)
 
 def main():
-    os.environ['WANDB_MODE'] = "disabled"
-
-    parser = argparse.ArgumentParser(description="PDI Utilities")
-    subparsers = parser.add_subparsers(dest="command", required=True, help="Subcommands")
-
-    # Train subcommand
-    train_parser = subparsers.add_parser("train", help="Train models")
-    train_parser.add_argument('cfg_file', type=str, help="Configuration file")
-
-    # Process subcommand
-    process_parser = subparsers.add_parser("process", help="Process ROOT file")
-    process_parser.add_argument('input_file', type=str, help="ROOT file to process")
-    process_parser.add_argument('cfg_file', type=str, help="Configuration file")
-
-    # Data exploration subcommand
-    data_exploration_parser = subparsers.add_parser("data-exploration", help="Data exploration")
-
-    # Benchmark subcommand
-    benchmark_parser = subparsers.add_parser("benchmark", help="Benchmark trained models")
-
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    p_parser = subparsers.add_parser("process")
+    p_parser.add_argument('input_file'); p_parser.add_argument('cfg_file')
+    t_parser = subparsers.add_parser("train")
+    t_parser.add_argument('cfg_file')
+    subparsers.add_parser("data-exploration")
+    subparsers.add_parser("benchmark")
     args = parser.parse_args()
-
-    if args.command == "train":
-        train_main(args.cfg_file)
-    elif args.command == "process":
-        process_main(args.input_file, args.cfg_file)
-    elif args.command == "data-exploration":
-        data_exploration_main()
-    elif args.command == "benchmark":
-        benchmark_main()
-        
+    if args.command == "process": process_main(args.input_file, args.cfg_file)
+    elif args.command == "train": train_main(args.cfg_file)
+    elif args.command == "data-exploration": data_exploration_main()
+    elif args.command == "benchmark": benchmark_main()
 
 if __name__ == "__main__":
-    pdi_dir = get_env_path("PDI_DIR", "pdi")
-    print("PDI DIR:", pdi_dir)
-    if pdi_dir not in sys.path:
-        sys.path.append(pdi_dir)
-
-    from pdi.data.preparation import FeatureSetPreparation
-    from pdi.data.detector_helpers import columns_to_detectors, detector_unmask
-    from pdi.data.data_exploration import plot_particle_distribution, plot_cor_matrix, explain_model, plot_and_save_beeswarm
-    from pdi.models import AttentionModel, Traditional
-    from pdi.data.constants import N_COLUMNS, TARGET_COLUMN
-    from pdi.train import train
-    from pdi.constants import (
-            PARTICLES_DICT,
-            TARGET_CODES,
-            NUM_WORKERS,
-            P_RANGE,
-            P_RESOLUTION
-        )
-    from pdi.data.types import Split, Additional
-    from pdi.data.config import RUN
-    from pdi.evaluate import get_predictions_data_and_loss, get_nsigma_predictions_data, calculate_precision_recall
-    from pdi.visualise import plot_purity_comparison, plot_efficiency_comparison, plot_precision_recall_comparison
-
     main()

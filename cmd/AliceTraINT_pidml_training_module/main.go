@@ -71,12 +71,12 @@ func main() {
 	}
 
 	for {
-		err = removeContents(cfg.DataDirPath)
+		// err = removeContents(cfg.DataDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
 
-		err = removeContents(cfg.ResultsDirPath)
+		// err = removeContents(cfg.ResultsDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -99,13 +99,13 @@ func main() {
 		os.WriteFile(trainingConfigPath, jsonString, os.ModePerm)
 
 		training_commands := []scripts.Command{
-			scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
-			scripts.NewProducerRunner(cfg),
+			// scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
+			// scripts.NewProducerRunner(cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandProcess, cfg, preprocessedRoot, trainingConfigPath),
 			scripts.NewPdiRunner(scripts.PdiCommandDataExploration, cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
 		}
-		err = runCommands(training_commands, tt.ID)
+		err = runCommands(training_commands, tt.ID)	
 		if err != nil {
 			handleError(cfg, err, tt.ID)
 			continue

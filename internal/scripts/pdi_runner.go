@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/client"
@@ -58,9 +59,14 @@ func (p *PdiRunner) Run() error {
 	defer logFileErr.Close()
 	multiWriterErr := io.MultiWriter(logFileErr, os.Stderr)
 
-	pythonVenvBin := filepath.Join(p.VenvDirPath, "bin/python3")
-	scriptPath := filepath.Join(p.ScriptsDirPath, "pdi_scripts.py")
+	// Cross-platform python path detection
+	pythonExePath := "bin/python3"
+	if runtime.GOOS == "windows" {
+		pythonExePath = "Scripts/python.exe"
+	}
+	pythonVenvBin := filepath.Join(p.VenvDirPath, pythonExePath)
 
+	scriptPath := filepath.Join(p.ScriptsDirPath, "pdi_scripts.py")
 	cmdArgs := append([]string{scriptPath, string(p.Command)}, p.Args...)
 
 	cmd := exec.Command(pythonVenvBin, cmdArgs...)
@@ -72,39 +78,31 @@ func (p *PdiRunner) Run() error {
 }
 
 func (p *PdiRunner) UploadLogs(ttId uint) error {
-	err := client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
+	client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
 		Name:        filepath.Base(p.LogOutPath),
 		Description: fmt.Sprintf("Log file of %s pdi's command", string(p.Command)),
 		Type:        client.Log,
 		FilePath:    p.LogOutPath,
 	})
-	if err != nil {
-		return err
-	}
-
-	err = client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
+	client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
 		Name:        filepath.Base(p.LogErrPath),
 		Description: fmt.Sprintf("Log file of %s pdi's command", string(p.Command)),
 		Type:        client.Log,
 		FilePath:    p.LogErrPath,
 	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
+// uploadWalkDir searches RECURSIVELY for files with specific extensions
 func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResultType, ttId uint, descFunc func(name string) string) error {
 	return filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			fmt.Println("Error accessing path:", err)
-			return err
+			return nil // Skip inaccessible files
 		}
-
 		if !d.IsDir() {
-			if strings.HasSuffix(d.Name(), client.GetExtensionFromResultType(resType)) {
-				fmt.Println("Found file:", path)
+			ext := client.GetExtensionFromResultType(resType)
+			if strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(ext)) {
+				fmt.Println("Found and uploading:", path)
 				client.UploadTaskResult(cfg, ttId, &client.TaskResultPayload{
 					Name:        d.Name(),
 					Description: descFunc(d.Name()),
@@ -120,50 +118,18 @@ func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResult
 func (p *PdiRunner) UploadResults(ttId uint) error {
 	switch p.Command {
 	case PdiCommandProcess:
-	case PdiCommandDataExploration:
-		return uploadWalkDir(
-			p.Config,
-			filepath.Join(p.ResultsDirPath, "data-exploration"),
-			client.Image,
-			ttId,
-			func(name string) string {
-				return "Part of data exploration graphs"
-			},
-		)
+		return nil
+	case PdiCommandDataExploration, PdiCommandBenchmark:
+		// Upload all images (.png) found anywhere in results/
+		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Image, ttId, func(name string) string {
+			return "Generated plot/graph"
+		})
 	case PdiCommandTrain:
-		return uploadWalkDir(
-			p.Config,
-			filepath.Join(p.ResultsDirPath, "models"),
-			client.Onnx,
-			ttId,
-			func(name string) string {
-				particle := strings.TrimSuffix(name, filepath.Ext(name))
-				return fmt.Sprintf("ONNX exported neural network for %s", particle)
-			},
-		)
-	case PdiCommandBenchmark:
-		err := uploadWalkDir(
-			p.Config,
-			filepath.Join(p.ResultsDirPath, "benchmark"),
-			client.Image,
-			ttId,
-			func(name string) string {
-				return "Benchmark data of trained neural network"
-			},
-		)
-		if err != nil {
-			return err
-		}
-		return uploadWalkDir(
-			p.Config,
-			filepath.Join(p.ResultsDirPath, "feature_importance"),
-			client.Image,
-			ttId,
-			func(name string) string {
-				return "Feature importance of neural network"
-			},
-		)
+		// Upload all ONNX models found anywhere in results/
+		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Onnx, ttId, func(name string) string {
+			particle := strings.TrimSuffix(name, filepath.Ext(name))
+			return fmt.Sprintf("ONNX model for %s", particle)
+		})
 	}
-
 	return nil
 }
