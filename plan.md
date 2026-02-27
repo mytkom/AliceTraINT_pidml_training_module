@@ -48,9 +48,3 @@ In a second terminal:
 ```bash
 ./training-module
 ```
-
-## 3. Key Changes to Note
-- **Recursive Search:** The Go module now searches `results/` recursively for `.onnx` and `.png` files. No manual flattening is required in Python.
-- **Unique Naming:** Python now prefixes result files with the particle name (e.g., `pion_precision_recall.png`) to prevent overwriting on the server.
-- **SHAP Analysis:** Automatic SHAP analysis is performed for every detector group (GID).
-- **WandB:** Hard-disabled by default for production stability. Use `WANDB_MODE=online` in `.env` if you want to enable it for your own experiments.
