@@ -14,7 +14,6 @@ import torch
 
 # Setup for server/headless environments
 matplotlib.use('Agg')
-os.environ["WANDB_MODE"] = "disabled"
 
 # --- PATH RESOLUTION ---
 SCRIPTS_DIR = Path(os.path.abspath(__file__)).parent
