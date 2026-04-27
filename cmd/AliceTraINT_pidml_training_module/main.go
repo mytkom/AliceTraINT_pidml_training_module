@@ -69,15 +69,18 @@ func main() {
 	}
 
 	for {
-		// err = removeContents(cfg.DataDirPath)
+		err = removeContents(cfg.DataDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
 
-		// err = removeContents(cfg.ResultsDirPath)
+		err = removeContents(cfg.ResultsDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
+
+		os.RemoveAll("training_runs")
+		os.RemoveAll(filepath.Join(cfg.PdiDirPath, "training_runs"))
 
 		tt, err := client.GetQueuedTask(cfg)
 		if err != nil {

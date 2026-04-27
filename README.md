@@ -38,7 +38,7 @@ Golang code is stored in `internal` subdir and its commands' main are stored in 
 ### Used scripts
 1. `download-multiple-grid-data.sh` (which needs `download-from-grid.sh` and `utilities.sh`) - script used to efficiently download multiple training data files (AODs) from GRID,
 2. `run-pidml-producer.sh` (which needs `ml-mc-config.json` and **O2Physics** intallation) - script running all necessary `O2Physics` tasks pipeline with PIDML producer. It is configured in `ml-mc-config.json` file.
-3. `pdi_scripts.py` (which needs venv with all requirements of pdi repository and `uproot3`) - contains 4 scripts, which uses `pdi` code. These are: `process` - processed .root file into .csv file and prepares data for training, `data-exploration` - generates statistical graphs of prepared data, `train` - trains neural network with provided config (default config is in `scripts/train_default_cfg.json`), `benchmark` - generates graphs necessary to evaluate trained neural networks.
+3. `pdi_scripts.py` (which needs venv with all requirements of pdi repository) - modern wrapper around the PDI v2 pipeline. It exposes 2 subcommands: `train` - sets up paths and trains neural networks for all particles using the provided JSON config via `train_all_particles.py`, and `plots` - generates SHAP values and performance graphs necessary to evaluate trained models via `generate_plots.py`.
  
 ### Client code
 All functions for communication with **AliceTraINT** web interface are stored in `client` go submodule with required structs.
@@ -46,5 +46,7 @@ All functions for communication with **AliceTraINT** web interface are stored in
 ### Command pattern
 Golang code uses command pattern. All commands implements `Command` interface (everything in `scripts` go module). List of `Command`s is evaluated in every training task stage (`cmd/AlicaTraINT_pidml_training_module/main.go`).
 
-### Mock command
-There is also mock command provided (`cmd/mock/main.go` and `make mock`), which can be useful when testing communication between web interface and training module without any script execution of training task.
+### Mock Testing
+There is a mock command provided (`cmd/mock/main.go` and `make mock`), which can be useful when testing communication between web interface and training module without any script execution of training task.
+
+Additionally, a local `mock_server.py` is provided to fully simulate the central AliceTraINT web interface. This allows you to test the complete orchestrator pipeline (from downloading tasks to uploading models) locally without needing a deployed web backend. To run the mock server, you need to install the `Flask` library.
