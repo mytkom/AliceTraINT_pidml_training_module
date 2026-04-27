@@ -76,18 +76,26 @@ func (p *PdiRunner) Run() error {
 }
 
 func (p *PdiRunner) UploadLogs(ttId uint) error {
-	client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
+	err := client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
 		Name:        filepath.Base(p.LogOutPath),
 		Description: fmt.Sprintf("Log file of %s pdi's command", string(p.Command)),
 		Type:        client.Log,
 		FilePath:    p.LogOutPath,
 	})
-	client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
+	if err != nil {
+		return err
+	}
+
+	err = client.UploadTaskResult(p.Config, ttId, &client.TaskResultPayload{
 		Name:        filepath.Base(p.LogErrPath),
 		Description: fmt.Sprintf("Log file of %s pdi's command", string(p.Command)),
 		Type:        client.Log,
 		FilePath:    p.LogErrPath,
 	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -95,7 +103,8 @@ func (p *PdiRunner) UploadLogs(ttId uint) error {
 func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResultType, ttId uint, descFunc func(name string) string) error {
 	return filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // Skip inaccessible files
+			fmt.Println("Error accessing path:", err)
+			return err
 		}
 		if !d.IsDir() {
 			ext := client.GetExtensionFromResultType(resType)
@@ -131,7 +140,6 @@ func (p *PdiRunner) UploadResults(ttId uint) error {
 		}
 		// Upload all CSV metrics found anywhere in results/
 		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Csv, ttId, func(name string) string {
-			// WalkDir is recursive, but we just use name to keep it simple.
 			return fmt.Sprintf("Metrics (%s) for particle", name)
 		})
 	}
