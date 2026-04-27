@@ -99,13 +99,13 @@ func (p *PdiRunner) UploadLogs(ttId uint) error {
 	return nil
 }
 
-// uploadWalkDir searches RECURSIVELY for files with specific extensions
 func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResultType, ttId uint, descFunc func(name string) string) error {
 	return filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Println("Error accessing path:", err)
 			return err
 		}
+
 		if !d.IsDir() {
 			ext := client.GetExtensionFromResultType(resType)
 			if strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(ext)) {
@@ -126,22 +126,40 @@ func (p *PdiRunner) UploadResults(ttId uint) error {
 	switch p.Command {
 	case PdiCommandPlots:
 		// Upload all images (.png) found anywhere in results/
-		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Image, ttId, func(name string) string {
-			return "Generated plot/graph"
-		})
+		return uploadWalkDir(
+			p.Config,
+			p.ResultsDirPath,
+			client.Image,
+			ttId,
+			func(name string) string {
+				return "Generated plot/graph"
+			},
+		)
 	case PdiCommandTrain:
 		// Upload all ONNX models found anywhere in results/
-		err := uploadWalkDir(p.Config, p.ResultsDirPath, client.Onnx, ttId, func(name string) string {
-			particle := strings.TrimSuffix(name, filepath.Ext(name))
-			return fmt.Sprintf("ONNX model for %s", particle)
-		})
+		err := uploadWalkDir(
+			p.Config,
+			p.ResultsDirPath,
+			client.Onnx,
+			ttId,
+			func(name string) string {
+				particle := strings.TrimSuffix(name, filepath.Ext(name))
+				return fmt.Sprintf("ONNX model for %s", particle)
+			},
+		)
 		if err != nil {
 			return err
 		}
 		// Upload all CSV metrics found anywhere in results/
-		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Csv, ttId, func(name string) string {
-			return fmt.Sprintf("Metrics (%s) for particle", name)
-		})
+		return uploadWalkDir(
+			p.Config,
+			p.ResultsDirPath,
+			client.Csv,
+			ttId,
+			func(name string) string {
+				return fmt.Sprintf("Metrics (%s) for particle", name)
+			},
+		)
 	}
 	return nil
 }
