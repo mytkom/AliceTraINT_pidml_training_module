@@ -1,40 +1,38 @@
 import sys
 import os
-import json
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Union, Annotated
 import tyro
 
-# Project structure
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def get_pdi_env() -> dict:
+    pdi_src = str(PROJECT_ROOT / "pdi" / "src")
+    pdi_scripts_dir = str(PROJECT_ROOT / "pdi" / "scripts")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{pdi_src}{os.pathsep}{pdi_scripts_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    return env
 
 @dataclass
 class TrainSubcommand:
     cfg_file: tyro.conf.Positional[str]
     
     def run(self):
-        print("--- [TRAIN] Starting (via PDI train_all_particles) ---")
+        print("--- [TRAIN] Starting ---")
         
-        # 1. Paths Setup
-        pdi_dir = str(PROJECT_ROOT / "pdi")
-        pdi_src = str(PROJECT_ROOT / "pdi" / "src")
-        pdi_scripts_dir = str(PROJECT_ROOT / "pdi" / "scripts")
-        train_script = str(Path(pdi_dir) / "scripts" / "train_all_particles.py")
+        # Paths Setup
+        train_script = str(PROJECT_ROOT / "pdi" / "scripts" / "train_all_particles.py")
+        env = get_pdi_env()
         
-        # We run from PROJECT_ROOT so that relative paths in JSON (like "data/...") work
-        env = os.environ.copy()
-        env["PYTHONPATH"] = f"{pdi_src}{os.pathsep}{pdi_scripts_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
-        
-        # 2. Execution (Direct use of your config file)
         cmd = [
             sys.executable,
             train_script,
             "--all", str(Path(self.cfg_file).resolve())
         ]
         
-        print(f"Executing PDI training (direct mode)...")
+        print(f"Executing training")
         subprocess.run(cmd, check=True, env=env, cwd=PROJECT_ROOT)
 
 
@@ -44,16 +42,10 @@ class PlotsSubcommand:
     shap_batch_size: int = 2
 
     def run(self):
-        print("--- [PLOTS] Starting (via PDI generate_plots) ---")
-        pdi_dir = str(PROJECT_ROOT / "pdi")
-        pdi_src = str(PROJECT_ROOT / "pdi" / "src")
-        pdi_scripts_dir = str(PROJECT_ROOT / "pdi" / "scripts")
-        plots_script = str(Path(pdi_dir) / "scripts" / "generate_plots.py")
+        print("--- [PLOTS] Starting ---")
+        plots_script = str(PROJECT_ROOT / "pdi" / "scripts" / "generate_plots.py")
+        env = get_pdi_env()
 
-        env = os.environ.copy()
-        env["PYTHONPATH"] = f"{pdi_src}{os.pathsep}{pdi_scripts_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
-
-        # Get results_dir from JSON config (manually for benchmark) or default
         results_dir = str(PROJECT_ROOT / "results")
 
         for particle_dir in Path(results_dir).iterdir():

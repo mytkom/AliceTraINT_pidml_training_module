@@ -56,7 +56,6 @@ func removeContents(dir string) error {
 func main() {
 	cfg := config.LoadConfig()
 	trainingConfigPath := filepath.Join(cfg.DataDirPath, "train.json")
-
 	waitDuration := time.Duration(cfg.PoolingWaitSeconds) * time.Second
 
 	err := os.MkdirAll(cfg.DataDirPath, os.ModePerm)
@@ -100,7 +99,6 @@ func main() {
 		training_commands := []scripts.Command{
 			// scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
 			// scripts.NewProducerRunner(cfg),
-
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
 		}
 		err = runCommands(training_commands, tt.ID)	
