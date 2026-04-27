@@ -17,9 +17,7 @@ type PdiCommand string
 
 const (
 	PdiCommandTrain           PdiCommand = "train"
-	PdiCommandProcess         PdiCommand = "process"
-	PdiCommandDataExploration PdiCommand = "data-exploration"
-	PdiCommandBenchmark       PdiCommand = "benchmark"
+	PdiCommandPlots           PdiCommand = "plots"
 )
 
 type PdiRunner struct {
@@ -117,18 +115,24 @@ func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResult
 
 func (p *PdiRunner) UploadResults(ttId uint) error {
 	switch p.Command {
-	case PdiCommandProcess:
-		return nil
-	case PdiCommandDataExploration, PdiCommandBenchmark:
+	case PdiCommandPlots:
 		// Upload all images (.png) found anywhere in results/
 		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Image, ttId, func(name string) string {
 			return "Generated plot/graph"
 		})
 	case PdiCommandTrain:
 		// Upload all ONNX models found anywhere in results/
-		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Onnx, ttId, func(name string) string {
+		err := uploadWalkDir(p.Config, p.ResultsDirPath, client.Onnx, ttId, func(name string) string {
 			particle := strings.TrimSuffix(name, filepath.Ext(name))
 			return fmt.Sprintf("ONNX model for %s", particle)
+		})
+		if err != nil {
+			return err
+		}
+		// Upload all CSV metrics found anywhere in results/
+		return uploadWalkDir(p.Config, p.ResultsDirPath, client.Csv, ttId, func(name string) string {
+			// WalkDir is recursive, but we just use name to keep it simple.
+			return fmt.Sprintf("Metrics (%s) for particle", name)
 		})
 	}
 	return nil

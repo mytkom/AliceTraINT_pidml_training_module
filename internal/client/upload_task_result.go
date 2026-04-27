@@ -16,6 +16,7 @@ const (
 	Log TaskResultType = iota
 	Image
 	Onnx
+	Csv
 )
 
 func GetExtensionFromResultType(resType TaskResultType) string {
@@ -26,6 +27,8 @@ func GetExtensionFromResultType(resType TaskResultType) string {
 		return ".png"
 	case Onnx:
 		return ".onnx"
+	case Csv:
+		return ".csv"
 	}
 
 	return ""

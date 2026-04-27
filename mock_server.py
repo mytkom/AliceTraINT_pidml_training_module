@@ -18,22 +18,38 @@ def get_task(machine_id):
                 {"Path": "data/LHC23k4g-535069-from-001-to-006.root"}
             ],
             "Configuration": {
-                "subset_size": 50000,
-                # --- NEW KEYS FOR PDI INTEGRATION ---
-                "input_file": "data/LHC23k4g-535069-from-001-to-006.root",
-                "use_gpu": False,
-                "max_epochs": 1, # Set to 1 for fast testing
-                # ------------------------------------
-                "embed_hidden": 16,
-                "d_model": 16,
-                "ff_hidden": 32,
-                "pool_hidden": 16,
-                "num_heads": 1,
-                "num_blocks": 1,
-                "start_lr": 0.001,
-                "dropout": 0.0,
-                "bs": 1024, # Reduced batch size for stability
-                "undersample": False
+                "training": {
+                    "batch_size": 1024,
+                    "max_epochs": 1,
+                    "start_lr": 0.001,
+                    "device": "cpu",
+                    "num_workers": 0
+                },
+                "model": {
+                    "architecture": "attention",
+                    "attention": {
+                        "embed_dim": 16,
+                        "dropout": 0.0,
+                        "embed_hidden_layers": [16],
+                        "encoder_ff_hidden": 32,
+                        "num_blocks": 1,
+                        "num_heads": 1,
+                        "pool_hidden_layers": [16]
+                    }
+                },
+                "data": {
+                    "subset_size": 50000,
+                    "undersample_pions": False
+                },
+                "validation": {
+                    "num_workers": 0
+                },
+                "sim_dataset_paths": [
+                    "data/LHC23k4g-535069-from-001-to-006.root"
+                ],
+                "results_dir": "results",
+                "project_dir": "",
+                "use_wandb": False
             }
         })
     return '', 404
