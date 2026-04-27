@@ -100,8 +100,8 @@ func main() {
 		os.WriteFile(trainingConfigPath, jsonString, os.ModePerm)
 
 		training_commands := []scripts.Command{
-			// scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
-			// scripts.NewProducerRunner(cfg),
+			scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
+			scripts.NewProducerRunner(cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
 		}
 		err = runCommands(training_commands, tt.ID)	
