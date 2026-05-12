@@ -79,8 +79,12 @@ func main() {
 			log.Fatal(err.Error())
 		}
 
-		os.RemoveAll("training_runs")
-		os.RemoveAll(filepath.Join(cfg.PdiDirPath, "training_runs"))
+		if err := os.RemoveAll("training_runs"); err != nil {
+			log.Printf("failed to remove training_runs: %v", err)
+		}
+		if err := os.RemoveAll(filepath.Join(cfg.PdiDirPath, "training_runs")); err != nil {
+			log.Printf("failed to remove %s: %v", filepath.Join(cfg.PdiDirPath, "training_runs"), err)
+		}
 
 		tt, err := client.GetQueuedTask(cfg)
 		if err != nil {

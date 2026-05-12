@@ -39,7 +39,13 @@ func NewPdiRunner(command PdiCommand, cfg *config.Config, args ...string) *PdiRu
 }
 
 func (p *PdiRunner) Run() error {
-	os.Setenv("PDI_DIR", p.PdiDirPath)
+	pdiRoot := filepath.Dir(p.PdiDirPath)
+	os.Setenv("PDI_DIR", pdiRoot)
+	os.Setenv("PDI_SRC_DIR", p.PdiDirPath)
+	os.Setenv("PDI_SCRIPTS_DIR", filepath.Join(pdiRoot, "scripts"))
+	os.Setenv("PDI_TRAIN_SCRIPT", filepath.Join(pdiRoot, "scripts", "train_all_particles.py"))
+	os.Setenv("PDI_PLOTS_SCRIPT", filepath.Join(pdiRoot, "scripts", "generate_plots.py"))
+
 	os.Setenv("DATA_DIR", p.DataDirPath)
 	os.Setenv("RESULTS_DIR", p.ResultsDirPath)
 
@@ -161,5 +167,6 @@ func (p *PdiRunner) UploadResults(ttId uint) error {
 			},
 		)
 	}
+
 	return nil
 }

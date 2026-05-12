@@ -49,4 +49,4 @@ Golang code uses command pattern. All commands implements `Command` interface (e
 ### Mock Testing
 There is a mock command provided (`cmd/mock/main.go` and `make mock`), which can be useful when testing communication between web interface and training module without any script execution of training task.
 
-Additionally, a local `mock_server.py` is provided to fully simulate the central AliceTraINT web interface. This allows you to test the complete orchestrator pipeline (from downloading tasks to uploading models) locally without needing a deployed web backend. To run the mock server, you need to install the `Flask` library.
+Additionally, a local `mock_server.py` is provided to fully simulate the central AliceTraINT web interface. This allows you to test the complete orchestrator pipeline (from downloading tasks to uploading models) locally without needing a deployed web backend.

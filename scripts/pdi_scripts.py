@@ -9,10 +9,18 @@ import tyro
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def get_pdi_env() -> dict:
-    pdi_src = str(PROJECT_ROOT / "pdi" / "src")
-    pdi_scripts_dir = str(PROJECT_ROOT / "pdi" / "scripts")
     env = os.environ.copy()
-    env["PYTHONPATH"] = f"{pdi_src}{os.pathsep}{pdi_scripts_dir}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    
+    pdi_dir = Path(env.get("PDI_DIR", PROJECT_ROOT / "pdi"))
+    pdi_src = env.get("PDI_SRC_DIR", str(pdi_dir / "src"))
+    pdi_scripts_dir = env.get("PDI_SCRIPTS_DIR", str(pdi_dir / "scripts"))
+
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    pythonpath_entries = [pdi_src, pdi_scripts_dir, existing_pythonpath]
+    env["PYTHONPATH"] = os.pathsep.join(
+        str(entry) for entry in pythonpath_entries if entry
+    )
+    
     return env
 
 @dataclass
@@ -22,9 +30,8 @@ class TrainSubcommand:
     def run(self):
         print("--- [TRAIN] Starting ---")
         
-        # Paths Setup
-        train_script = str(PROJECT_ROOT / "pdi" / "scripts" / "train_all_particles.py")
         env = get_pdi_env()
+        train_script = env.get("PDI_TRAIN_SCRIPT", str(PROJECT_ROOT / "pdi" / "scripts" / "train_all_particles.py"))
         
         cmd = [
             sys.executable,
@@ -43,12 +50,16 @@ class PlotsSubcommand:
 
     def run(self):
         print("--- [PLOTS] Starting ---")
-        plots_script = str(PROJECT_ROOT / "pdi" / "scripts" / "generate_plots.py")
         env = get_pdi_env()
+        
+        plots_script = env.get("PDI_PLOTS_SCRIPT", str(PROJECT_ROOT / "pdi" / "scripts" / "generate_plots.py"))
+        results_dir = Path(env.get("RESULTS_DIR", str(PROJECT_ROOT / "results")))
 
-        results_dir = str(PROJECT_ROOT / "results")
+        if not results_dir.exists():
+            print(f"Results directory not found: {results_dir}")
+            return
 
-        for particle_dir in Path(results_dir).iterdir():
+        for particle_dir in results_dir.iterdir():
             if not particle_dir.is_dir() or particle_dir.name == "project":
                 continue
             
