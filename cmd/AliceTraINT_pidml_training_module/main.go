@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"fmt"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/client"
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
@@ -57,7 +56,6 @@ func removeContents(dir string) error {
 func main() {
 	cfg := config.LoadConfig()
 	trainingConfigPath := filepath.Join(cfg.DataDirPath, "train.json")
-	preprocessedRoot := filepath.Join(cfg.DataDirPath, fmt.Sprintf("%s.root", scripts.PreprocessedAodFileName))
 	waitDuration := time.Duration(cfg.PoolingWaitSeconds) * time.Second
 
 	err := os.MkdirAll(cfg.DataDirPath, os.ModePerm)
@@ -81,6 +79,13 @@ func main() {
 			log.Fatal(err.Error())
 		}
 
+		if err := os.RemoveAll("training_runs"); err != nil {
+			log.Printf("failed to remove training_runs: %v", err)
+		}
+		if err := os.RemoveAll(filepath.Join(cfg.PdiDirPath, "training_runs")); err != nil {
+			log.Printf("failed to remove %s: %v", filepath.Join(cfg.PdiDirPath, "training_runs"), err)
+		}
+
 		tt, err := client.GetQueuedTask(cfg)
 		if err != nil {
 			log.Fatal(err.Error())
@@ -101,11 +106,9 @@ func main() {
 		training_commands := []scripts.Command{
 			scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
 			scripts.NewProducerRunner(cfg),
-			scripts.NewPdiRunner(scripts.PdiCommandProcess, cfg, preprocessedRoot, trainingConfigPath),
-			scripts.NewPdiRunner(scripts.PdiCommandDataExploration, cfg),
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
 		}
-		err = runCommands(training_commands, tt.ID)
+		err = runCommands(training_commands, tt.ID)	
 		if err != nil {
 			handleError(cfg, err, tt.ID)
 			continue
@@ -117,10 +120,10 @@ func main() {
 			continue
 		}
 
-		benchmarking_commands := []scripts.Command{
-			scripts.NewPdiRunner(scripts.PdiCommandBenchmark, cfg),
+		plots_commands := []scripts.Command{
+			scripts.NewPdiRunner(scripts.PdiCommandPlots, cfg),
 		}
-		err = runCommands(benchmarking_commands, tt.ID)
+		err = runCommands(plots_commands, tt.ID)
 		if err != nil {
 			handleError(cfg, err, tt.ID)
 			continue

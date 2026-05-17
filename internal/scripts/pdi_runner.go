@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/client"
@@ -16,9 +17,7 @@ type PdiCommand string
 
 const (
 	PdiCommandTrain           PdiCommand = "train"
-	PdiCommandProcess         PdiCommand = "process"
-	PdiCommandDataExploration PdiCommand = "data-exploration"
-	PdiCommandBenchmark       PdiCommand = "benchmark"
+	PdiCommandPlots           PdiCommand = "plots"
 )
 
 type PdiRunner struct {
@@ -40,7 +39,13 @@ func NewPdiRunner(command PdiCommand, cfg *config.Config, args ...string) *PdiRu
 }
 
 func (p *PdiRunner) Run() error {
-	os.Setenv("PDI_DIR", p.PdiDirPath)
+	pdiRoot := filepath.Dir(p.PdiDirPath)
+	os.Setenv("PDI_DIR", pdiRoot)
+	os.Setenv("PDI_SRC_DIR", p.PdiDirPath)
+	os.Setenv("PDI_SCRIPTS_DIR", filepath.Join(pdiRoot, "scripts"))
+	os.Setenv("PDI_TRAIN_SCRIPT", filepath.Join(pdiRoot, "scripts", "train_all_particles.py"))
+	os.Setenv("PDI_PLOTS_SCRIPT", filepath.Join(pdiRoot, "scripts", "generate_plots.py"))
+
 	os.Setenv("DATA_DIR", p.DataDirPath)
 	os.Setenv("RESULTS_DIR", p.ResultsDirPath)
 
@@ -58,9 +63,14 @@ func (p *PdiRunner) Run() error {
 	defer logFileErr.Close()
 	multiWriterErr := io.MultiWriter(logFileErr, os.Stderr)
 
-	pythonVenvBin := filepath.Join(p.VenvDirPath, "bin/python3")
-	scriptPath := filepath.Join(p.ScriptsDirPath, "pdi_scripts.py")
+	// Cross-platform python path detection
+	pythonExePath := "bin/python3"
+	if runtime.GOOS == "windows" {
+		pythonExePath = "Scripts/python.exe"
+	}
+	pythonVenvBin := filepath.Join(p.VenvDirPath, pythonExePath)
 
+	scriptPath := filepath.Join(p.ScriptsDirPath, "pdi_scripts.py")
 	cmdArgs := append([]string{scriptPath, string(p.Command)}, p.Args...)
 
 	cmd := exec.Command(pythonVenvBin, cmdArgs...)
@@ -103,8 +113,9 @@ func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResult
 		}
 
 		if !d.IsDir() {
-			if strings.HasSuffix(d.Name(), client.GetExtensionFromResultType(resType)) {
-				fmt.Println("Found file:", path)
+			ext := client.GetExtensionFromResultType(resType)
+			if strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(ext)) {
+				fmt.Println("Found and uploading:", path)
 				client.UploadTaskResult(cfg, ttId, &client.TaskResultPayload{
 					Name:        d.Name(),
 					Description: descFunc(d.Name()),
@@ -119,48 +130,40 @@ func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResult
 
 func (p *PdiRunner) UploadResults(ttId uint) error {
 	switch p.Command {
-	case PdiCommandProcess:
-	case PdiCommandDataExploration:
+	case PdiCommandPlots:
+		// Upload all images (.png) found anywhere in results/
 		return uploadWalkDir(
 			p.Config,
-			filepath.Join(p.ResultsDirPath, "data-exploration"),
+			p.ResultsDirPath,
 			client.Image,
 			ttId,
 			func(name string) string {
-				return "Part of data exploration graphs"
+				return "Generated plot/graph"
 			},
 		)
 	case PdiCommandTrain:
-		return uploadWalkDir(
+		// Upload all ONNX models found anywhere in results/
+		err := uploadWalkDir(
 			p.Config,
-			filepath.Join(p.ResultsDirPath, "models"),
+			p.ResultsDirPath,
 			client.Onnx,
 			ttId,
 			func(name string) string {
 				particle := strings.TrimSuffix(name, filepath.Ext(name))
-				return fmt.Sprintf("ONNX exported neural network for %s", particle)
-			},
-		)
-	case PdiCommandBenchmark:
-		err := uploadWalkDir(
-			p.Config,
-			filepath.Join(p.ResultsDirPath, "benchmark"),
-			client.Image,
-			ttId,
-			func(name string) string {
-				return "Benchmark data of trained neural network"
+				return fmt.Sprintf("ONNX model for %s", particle)
 			},
 		)
 		if err != nil {
 			return err
 		}
+		// Upload all CSV metrics found anywhere in results/
 		return uploadWalkDir(
 			p.Config,
-			filepath.Join(p.ResultsDirPath, "feature_importance"),
-			client.Image,
+			p.ResultsDirPath,
+			client.Csv,
 			ttId,
 			func(name string) string {
-				return "Feature importance of neural network"
+				return fmt.Sprintf("Metrics (%s) for particle", name)
 			},
 		)
 	}
