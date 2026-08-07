@@ -11,15 +11,16 @@ import (
 )
 
 type Config struct {
-	MachineID          uint
-	MachineSecretKey   string
-	AlicetrainBaseUrl  string
-	DataDirPath        string
-	ScriptsDirPath     string
-	VenvDirPath        string
-	ResultsDirPath     string
-	PdiDirPath         string
-	PoolingWaitSeconds uint
+	MachineID           uint
+	MachineSecretKey    string
+	AlicetrainBaseUrl   string
+	DataDirPath         string
+	ScriptsDirPath      string
+	VenvDirPath         string
+	ResultsDirPath      string
+	PdiDirPath          string
+	DatasetCacheDirPath string
+	PoolingWaitSeconds  uint
 }
 
 func LoadConfig() *Config {
@@ -29,15 +30,16 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		MachineID:          getEnvAsUint("MACHINE_ID"),
-		MachineSecretKey:   getEnv("MACHINE_SECRET_KEY"),
-		AlicetrainBaseUrl:  getEnv("ALICETRAINT_BASE_URL"),
-		DataDirPath:        getEnvPath("ALICETRAINT_DATA_DIR_PATH"),
-		ScriptsDirPath:     getEnvPath("ALICETRAINT_SCRIPTS_DIR_PATH"),
-		VenvDirPath:        getEnvPath("ALICETRAINT_VENV_DIR_PATH"),
-		ResultsDirPath:     getEnvPath("ALICETRAINT_RESULTS_DIR_PATH"),
-		PdiDirPath:         getEnvPath("ALICETRAINT_PDI_SRC_DIR_PATH"),
-		PoolingWaitSeconds: getEnvAsUint("ALICETRAINT_POOLING_WAIT_SECONDS"),
+		MachineID:           getEnvAsUint("MACHINE_ID"),
+		MachineSecretKey:    getEnv("MACHINE_SECRET_KEY"),
+		AlicetrainBaseUrl:   getEnv("ALICETRAINT_BASE_URL"),
+		DataDirPath:         getEnvPath("ALICETRAINT_DATA_DIR_PATH"),
+		ScriptsDirPath:      getEnvPath("ALICETRAINT_SCRIPTS_DIR_PATH"),
+		VenvDirPath:         getEnvPath("ALICETRAINT_VENV_DIR_PATH"),
+		ResultsDirPath:      getEnvPath("ALICETRAINT_RESULTS_DIR_PATH"),
+		PdiDirPath:          getEnvPath("ALICETRAINT_PDI_SRC_DIR_PATH"),
+		DatasetCacheDirPath: getEnvPath("ALICETRAINT_DATASET_CACHE_DIR_PATH"),
+		PoolingWaitSeconds:  getEnvAsUint("ALICETRAINT_POOLING_WAIT_SECONDS"),
 	}
 }
 

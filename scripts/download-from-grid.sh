@@ -80,26 +80,26 @@ echo "Number of files: $nfiles"
 #  esac
 #done
 
-# Process list of files.
-speed=10 # number of download threads started per second
+# Process list 
+speed=4 # number of download threads started per second
 delay=$(echo "scale=10 ; 1 / $speed" | bc)
 while read -r file; do
   path_alien="alien://${file}"
   [ "$LISTEXT" -eq 1 ] && path_target="$path_local/$file" || path_target="$path_local/${file/$path_grid/}"
   if [ "$PARALLEL" -eq 1 ]; then
     # Prepare script for GNU Parallel.
-    echo "mkdir -p \"$(dirname "$path_target")\" && alien_cp -f -cksum -ddd -retry 2 \"$path_alien\" \"file:$path_target\"" >> "$scriptfile"
+    echo "mkdir -p \"$(dirname "$path_target")\" && alien_cp -f -cksum -ddd -chunks 4 -retry 20 \"$path_alien\" \"file:$path_target\"" >> "$scriptfile"
   else
     # Download using parallel background processes.
     mkdir -p "$(dirname "$path_target")" || { echo "Error"; exit 1; }
-    alien_cp -f -cksum -ddd -retry 2 "${path_alien}" "file:${path_target}" >> "$logfile" 2>&1 &
+    alien_cp -f -cksum -ddd -chunks 4 -retry 20 "${path_alien}" "file:${path_target}" >> "$logfile" 2>&1 &
     sleep "$delay"
   fi
 done < "$inputlist"
 
 if [ "$PARALLEL" -eq 1 ]; then
   # Download with GNU Parallel.
-  parallel --halt soon,fail=100% --jobs 10 --will-cite --progress < "$scriptfile" > "$logfile"
+  parallel --halt soon,fail=100% --jobs 4 --will-cite --progress < "$scriptfile" > "$logfile"
   # Report result.
   nsuccess=$(grep -c "STATUS OK" "$logfile")
   nvalid=$(grep -c "TARGET VALID" "$logfile")

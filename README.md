@@ -22,6 +22,21 @@ Then you should update `.env` file with obtained values.
 
 Training module always requests from web interface (never the other way), because of that queued training tasks are requested periodically (HTTP Pooling). Wait time between requests can be adjusted using `ALICETRAINT_POOLING_WAIT_SECONDS` enviroment variable.
 
+### Dataset cache
+Produced (subsampled) ROOT datasets are expensive to rebuild. Set `ALICETRAINT_DATASET_CACHE_DIR_PATH` to a durable directory that is **not** wiped between tasks. Cache key is SHA256 of:
+- sorted `AODFiles[].Path` (one per line)
+- `is_o_ne`, `is_data`, `subsample_event_count`
+
+Files stored as `{checksum}.root` (+ `{checksum}.meta.json`).
+
+### Training task payload (webapp → module)
+Beyond `ID`, `AODFiles`, `Configuration`, webapp must send:
+- `IsONe` (bool) — OO/Ne-Ne O2Physics pipeline variant
+- `IsData` (bool) — experimental data vs MC
+- `SubsampleEventCount` (uint) — target events for `subsample.sh`
+
+Module patches `train.json` `sim_dataset_paths` or `exp_dataset_paths` to the cached ROOT path.
+
 ## Running project
 Preffered way of interacting with project is building docker image using provided Dockerfile and executing container with enviroment variables overwriting:
 ### Docker
@@ -32,14 +47,27 @@ docker build -t alicetraint/training-module .
 ```
 After building you can run a container using this image and adjust configuration using enviroment variables passed to `docker run` command.
 
+Mount `ALICETRAINT_DATASET_CACHE_DIR_PATH` as a volume so cache survives container recreate.
+
+### Local subsample binary
+Dataset pipeline needs `scripts/subsample` (ROOT C++ helper). With O2Physics env:
+```bash
+alienv setenv O2Physics/latest -c make subsample
+```
+
 ## Internals
 Golang code is stored in `internal` subdir and its commands' main are stored in `cmd` subdirs. You can locally use GNU Make to run and build project (`make run`, `make mock` and `make build`). PDI submodule is in `pdi` subdir. All scripts which are run during training task execution are stored in `scripts` subdir.
 
 ### Used scripts
-1. `download-multiple-grid-data.sh` (which needs `download-from-grid.sh` and `utilities.sh`) - script used to efficiently download multiple training data files (AODs) from GRID,
-2. `run-pidml-producer.sh` (which needs `ml-mc-config.json` and **O2Physics** intallation) - script running all necessary `O2Physics` tasks pipeline with PIDML producer. It is configured in `ml-mc-config.json` file.
-3. `pdi_scripts.py` (which needs venv with all requirements of pdi repository) - modern wrapper around the PDI v2 pipeline. It exposes 2 subcommands: `train` - sets up paths and trains neural networks for all particles using the provided JSON config via `train_all_particles.py`, and `plots` - generates SHAP values and performance graphs necessary to evaluate trained models via `generate_plots.py`.
- 
+1. `download-multiple-grid-data.sh` (needs `download-from-grid.sh`, `utilities.sh`, `config.sh`) — retrying GRID AO2D download for a remote path list.
+2. `run-pidml-mc-producer.sh` (needs `O2configs/{sim,data}-config.json` and **O2Physics**) — PIDML producer pipeline; supports OO/Ne-Ne (`is_o_ne`) and data vs MC (`is_data`).
+3. `subsample.sh` (needs `scripts/subsample` binary) — subsample batch producer ROOT outputs to a target event count.
+4. `pdi_scripts.py` (needs venv with all requirements of pdi repository) — modern wrapper around the PDI v2 pipeline. It exposes 2 subcommands: `train` - sets up paths and trains neural networks for all particles using the provided JSON config via `train_all_particles.py`, and `plots` - generates SHAP values and performance graphs necessary to evaluate trained models via `generate_plots.py`.
+
+Orchestrator (`DatasetRunner`) splits `AODFiles` into batches of max 10, download+produce each batch, then subsample into the cache.
+
+**PDI tree-name note:** new producer writes `O2pidtracksmc` / `O2pidtracksdata` (tables `PIDTRACKSMC` / `PIDTRACKSDATA`). Older module path used `PIDTRACKSMCML` / `O2pidtracksmcml`. If PDI still expects the ML table name, update PDI loaders separately.
+
 ### Client code
 All functions for communication with **AliceTraINT** web interface are stored in `client` go submodule with required structs.
 
