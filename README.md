@@ -33,7 +33,7 @@ Files stored as `{checksum}.root` (+ `{checksum}.meta.json`).
 Beyond `ID`, `AODFiles`, `Configuration`, webapp must send:
 - `IsONe` (bool) — OO/Ne-Ne O2Physics pipeline variant
 - `IsData` (bool) — experimental data vs MC
-- `SubsampleEventCount` (uint) — target events for `subsample.sh`
+- `SubsampleEventCount` (uint) — target events for `subsample.sh`; is optional, `0` means the full dataset
 
 Module patches `train.json` `sim_dataset_paths` or `exp_dataset_paths` to the cached ROOT path.
 
@@ -61,7 +61,7 @@ Golang code is stored in `internal` subdir and its commands' main are stored in 
 ### Used scripts
 1. `download-multiple-grid-data.sh` (needs `download-from-grid.sh`, `utilities.sh`, `config.sh`) — retrying GRID AO2D download for a remote path list.
 2. `run-pidml-mc-producer.sh` (needs `O2configs/{sim,data}-config.json` and **O2Physics**) — PIDML producer pipeline; supports OO/Ne-Ne (`is_o_ne`) and data vs MC (`is_data`).
-3. `subsample.sh` (needs `scripts/subsample` binary) — subsample batch producer ROOT outputs to a target event count.
+3. `subsample.sh` (needs `scripts/subsample` binary) — subsample batch producer ROOT outputs to a target event count; with event count `0` it only merges them.
 4. `pdi_scripts.py` (needs venv with all requirements of pdi repository) — modern wrapper around the PDI v2 pipeline. It exposes 2 subcommands: `train` - sets up paths and trains neural networks for all particles using the provided JSON config via `train_all_particles.py`, and `plots` - generates SHAP values and performance graphs necessary to evaluate trained models via `generate_plots.py`.
 
 Orchestrator (`DatasetRunner`) splits `AODFiles` into batches of max 10, download+produce each batch, then subsample into the cache.

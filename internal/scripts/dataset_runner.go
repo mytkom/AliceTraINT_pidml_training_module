@@ -99,10 +99,6 @@ func DatasetCacheChecksum(aodFiles []client.AODFile, isONe, isData bool, subsamp
 }
 
 func (r *DatasetRunner) Run() error {
-	if r.SubsampleEventCount == 0 {
-		return fmt.Errorf("SubsampleEventCount must be > 0")
-	}
-
 	checksum, sortedPaths, err := DatasetCacheChecksum(r.AODFiles, r.IsONe, r.IsData, r.SubsampleEventCount)
 	if err != nil {
 		return err
@@ -200,6 +196,7 @@ func (r *DatasetRunner) buildDataset(sortedPaths []string, outW, errW io.Writer)
 		batchRoots = append(batchRoots, batchRoot)
 	}
 
+	// SubsampleEventCount == 0 means full dataset - batches are only merged, not subsampled.
 	tmpRoot := r.CachedDatasetPath + ".tmp.root"
 	_ = os.Remove(tmpRoot)
 	if err := r.runSubsample(tmpRoot, batchRoots, outW, errW); err != nil {
