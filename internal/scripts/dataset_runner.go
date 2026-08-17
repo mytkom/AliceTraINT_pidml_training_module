@@ -215,7 +215,7 @@ func (r *DatasetRunner) buildDataset(sortedPaths []string, outW, errW io.Writer)
 
 func (r *DatasetRunner) runDownload(remoteListPath, dataDir string, outW, errW io.Writer) error {
 	script := filepath.Join(r.ScriptsDirPath, downloadMultipleScript)
-	cmd := exec.Command(r.AlienvBin, "setenv", "xjalienfs/latest", "-c", script, remoteListPath)
+	cmd := exec.Command(r.AlienvBin, "setenv", r.XjalienfsTag, "-c", script, remoteListPath)
 	cmd.Stdout = outW
 	cmd.Stderr = errW
 	cmd.Env = r.scriptEnv(dataDir, r.DataDirPath)

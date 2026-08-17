@@ -23,6 +23,7 @@ type Config struct {
 	PoolingWaitSeconds  uint
 	AlienvBin           string
 	O2PhysicsTag        string
+	XjalienfsTag        string
 }
 
 func LoadConfig() *Config {
@@ -44,6 +45,7 @@ func LoadConfig() *Config {
 		PoolingWaitSeconds:  getEnvAsUint("ALICETRAINT_POOLING_WAIT_SECONDS"),
 		AlienvBin:           getEnvOrDefault("ALICETRAINT_ALIENV_BIN", "alienv"),
 		O2PhysicsTag:        getEnvOrDefault("ALICETRAINT_O2PHYSICS_TAG", "O2Physics/latest"),
+		XjalienfsTag:        getEnvOrDefault("ALICETRAINT_XJALIENFS_TAG", "xjalienfs/latest"),
 	}
 }
 
