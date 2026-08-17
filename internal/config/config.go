@@ -21,6 +21,9 @@ type Config struct {
 	PdiDirPath          string
 	DatasetCacheDirPath string
 	PoolingWaitSeconds  uint
+	AlienvBin           string
+	AlienvMode          string
+	O2PhysicsTag        string
 }
 
 func LoadConfig() *Config {
@@ -40,7 +43,18 @@ func LoadConfig() *Config {
 		PdiDirPath:          getEnvPath("ALICETRAINT_PDI_SRC_DIR_PATH"),
 		DatasetCacheDirPath: getEnvPath("ALICETRAINT_DATASET_CACHE_DIR_PATH"),
 		PoolingWaitSeconds:  getEnvAsUint("ALICETRAINT_POOLING_WAIT_SECONDS"),
+		AlienvBin:           getEnvOrDefault("ALICETRAINT_ALIENV_BIN", "alienv"),
+		AlienvMode:          getEnvOrDefault("ALICETRAINT_ALIENV_MODE", "setenv"),
+		O2PhysicsTag:        getEnvOrDefault("ALICETRAINT_O2PHYSICS_TAG", "O2Physics/latest"),
 	}
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists || value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 func getEnv(key string) string {

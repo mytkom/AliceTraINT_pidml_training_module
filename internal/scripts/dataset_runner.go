@@ -215,7 +215,7 @@ func (r *DatasetRunner) buildDataset(sortedPaths []string, outW, errW io.Writer)
 
 func (r *DatasetRunner) runDownload(remoteListPath, dataDir string, outW, errW io.Writer) error {
 	script := filepath.Join(r.ScriptsDirPath, downloadMultipleScript)
-	cmd := exec.Command("alienv", "setenv", "xjalienfs/latest", "-c", script, remoteListPath)
+	cmd := exec.Command(r.AlienvBin, r.AlienvMode, "xjalienfs/latest", "-c", script, remoteListPath)
 	cmd.Stdout = outW
 	cmd.Stderr = errW
 	cmd.Env = r.scriptEnv(dataDir, r.DataDirPath)
@@ -229,7 +229,7 @@ func (r *DatasetRunner) runProducer(aodListArg, outputName, trainingDir, dataDir
 	isData := strconv.FormatBool(r.IsData)
 
 	cmd := exec.Command(
-		"alienv", "setenv", "O2Physics/latest", "-c",
+		r.AlienvBin, r.AlienvMode, r.O2PhysicsTag, "-c",
 		script, aodListArg, outputName, isONe, isData,
 	)
 	cmd.Stdout = outW
@@ -244,7 +244,7 @@ func (r *DatasetRunner) runSubsample(outputPath string, inputRoots []string, out
 	script := filepath.Join(r.ScriptsDirPath, subsampleScriptName)
 	isData := strconv.FormatBool(r.IsData)
 	args := []string{
-		"alienv", "setenv", "O2Physics/latest", "-c",
+		r.AlienvBin, r.AlienvMode, r.O2PhysicsTag, "-c",
 		script,
 		strconv.FormatUint(uint64(r.SubsampleEventCount), 10),
 		outputPath,

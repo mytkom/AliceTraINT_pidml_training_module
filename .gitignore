@@ -29,3 +29,5 @@ data
 results
 dataset_cache
 scripts/subsample
+
+.venv/
