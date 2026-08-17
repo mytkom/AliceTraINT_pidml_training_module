@@ -22,7 +22,6 @@ type Config struct {
 	DatasetCacheDirPath string
 	PoolingWaitSeconds  uint
 	AlienvBin           string
-	AlienvMode          string
 	O2PhysicsTag        string
 }
 
@@ -44,7 +43,6 @@ func LoadConfig() *Config {
 		DatasetCacheDirPath: getEnvPath("ALICETRAINT_DATASET_CACHE_DIR_PATH"),
 		PoolingWaitSeconds:  getEnvAsUint("ALICETRAINT_POOLING_WAIT_SECONDS"),
 		AlienvBin:           getEnvOrDefault("ALICETRAINT_ALIENV_BIN", "alienv"),
-		AlienvMode:          getEnvOrDefault("ALICETRAINT_ALIENV_MODE", "setenv"),
 		O2PhysicsTag:        getEnvOrDefault("ALICETRAINT_O2PHYSICS_TAG", "O2Physics/latest"),
 	}
 }
