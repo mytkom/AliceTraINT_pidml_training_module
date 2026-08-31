@@ -224,20 +224,29 @@ func (r *DatasetRunner) runDownload(remoteListPath, dataDir string, outW, errW i
 }
 
 func (r *DatasetRunner) runProducer(aodListArg, outputName, trainingDir, dataDir string, outW, errW io.Writer) error {
-	script := filepath.Join(r.ScriptsDirPath, producerScriptName)
+	producer := filepath.Join(r.ScriptsDirPath, producerScriptName)
 	isONe := strconv.FormatBool(r.IsONe)
 	isData := strconv.FormatBool(r.IsData)
 
-	cmd := exec.Command(
+	inner := shellJoin(
 		r.AlienvBin, "setenv", r.O2PhysicsTag, "-c",
-		script, aodListArg, outputName, isONe, isData,
+		producer, aodListArg, outputName, isONe, isData,
 	)
+	cmd := exec.Command("script", "-q", "-c", inner, "/dev/null")
 	cmd.Stdout = outW
 	cmd.Stderr = errW
 	cmd.Env = r.scriptEnv(dataDir, trainingDir)
 	cmd.Dir = dataDir
 	log.Printf("Running PIDML producer: %v", cmd.Args)
 	return cmd.Run()
+}
+
+func shellJoin(args ...string) string {
+	out := make([]string, len(args))
+	for i, a := range args {
+		out[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+	}
+	return strings.Join(out, " ")
 }
 
 func (r *DatasetRunner) runSubsample(outputPath string, inputRoots []string, outW, errW io.Writer) error {

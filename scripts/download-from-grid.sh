@@ -109,9 +109,8 @@ else
   # Watch progress of background processes.
   nrunning=0
   pause=2 # [s] status update interval
-  CMDNRUN="top -u $USER -n 1 -b -c | grep python3 | grep jalien | wc -l"
-  # Wait for the start.
-  while [ "$nrunning" -eq 0 ]; do nrunning=$(eval "$CMDNRUN"); done
+  CMDNRUN="pgrep -u $USER -f '[a]lien_cp' | wc -l"
+  nrunning=$(eval "$CMDNRUN")
   # Report status
   while [ "$nrunning" -gt 0 ]; do
     nstarted=$(grep -c "Start" "$logfile")
@@ -126,6 +125,9 @@ else
       echo -e "\n"
     fi
   done
+  nsuccess=$(grep -c "STATUS OK" "$logfile" || true)
+  nvalid=$(grep -c "TARGET VALID" "$logfile" || true)
+  ndone=$((nsuccess + nvalid))
 fi
 echo -e "Logfile: $logfile"
 MsgStep "Done"
