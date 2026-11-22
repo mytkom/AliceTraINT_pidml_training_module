@@ -31,3 +31,9 @@ dataset_cache
 scripts/subsample
 
 .venv/
+bin/
+.epn-worker-stop
+
+default_config.json
+training_runs/
+alicetraint-worker-*.err

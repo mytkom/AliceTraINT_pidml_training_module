@@ -16,6 +16,7 @@ IS_DATA="${4:-}"
 TABLE_NAME=""
 CONFIG_SRC=""
 CONFIG_FILE=""
+TRACKEXTRA_VERSION=""
 
 validate_inputs() {
   require_args_count "$#" 4 "Usage: $0 <ao2d_list_file> <output_name> <is_o_ne:true|false> <is_data:true|false>"
@@ -37,11 +38,39 @@ select_config_and_table() {
   fi
 }
 
+# check which O2trackextra table the first AOD has
+detect_trackextra_version() {
+  local list_file="${AO2D_LIST_FILE#@}"
+  local aod
+  aod="$(grep -v '^[[:space:]]*$' "$list_file" | head -1 | sed 's/^@//')"
+  [ -f "$aod" ] || die "first AOD not found: ${aod:-<empty>}"
+  TRACKEXTRA_VERSION="$(python3 -c '
+import sys, ROOT
+ROOT.gROOT.SetBatch(True)
+f = ROOT.TFile.Open(sys.argv[1])
+d = f.Get(next(k.GetName() for k in f.GetListOfKeys() if k.GetName().startswith("DF_")))
+for v, n in (("v002", "O2trackextra_002"), ("v001", "O2trackextra_001"), ("v000", "O2trackextra")):
+    if d.Get(n):
+        print(v)
+        break
+else:
+    raise SystemExit("no O2trackextra*")
+' "$aod")" || die "trackextra version detect failed for $aod"
+  echo "trackextra version: $TRACKEXTRA_VERSION"
+}
+
 prepare_config() {
   echo "1. Performing AO2D list substitution in config file"
   CONFIG_FILE="$(mktemp "${TMPDIR:-/tmp}/pidml-o2-config.XXXXXX.json")"
   cp "$CONFIG_SRC" "$CONFIG_FILE"
   sed -i 's/"aod-file-private": ".*",$/"aod-file-private": "'"${AO2D_LIST_FILE//\//\\/}"'",/' "$CONFIG_FILE"
+  # for v000 AOD, switch converter from V001→V002 to V000→V002
+  if [ "$IS_O_NE" != "true" ] && [ "$TRACKEXTRA_VERSION" = "v000" ]; then
+    sed -i \
+      -e 's/"processV000ToV002": "false"/"processV000ToV002": "true"/' \
+      -e 's/"processV001ToV002": "true"/"processV001ToV002": "false"/' \
+      "$CONFIG_FILE"
+  fi
 }
 
 cleanup_config() {
@@ -54,7 +83,8 @@ run_pipeline() {
   echo "2. Running producer"
   local shm_segment_size="--aod-memory-rate-limit 2097152000 --shm-segment-size 20000000000"
 
-  if [ "$IS_O_NE" = "true" ]; then
+  # v002 AOD is already modern (also has mccollision_001); skip converters, same as OO/Ne
+  if [ "$IS_O_NE" = "true" ] || [ "$TRACKEXTRA_VERSION" = "v002" ]; then
     o2-analysis-event-selection-service $shm_segment_size --configuration "json://$CONFIG_FILE" -b |
     o2-analysis-propagationservice  $shm_segment_size --configuration "json://$CONFIG_FILE" -b |
     o2-analysis-ft0-corrected-table  $shm_segment_size --configuration "json://$CONFIG_FILE" -b |
@@ -102,6 +132,9 @@ select_config_and_table
 trap cleanup_config EXIT
 
 echo "config source: $CONFIG_SRC"
+if [ "$IS_O_NE" != "true" ]; then
+  detect_trackextra_version
+fi
 prepare_config
 echo "config file: $CONFIG_FILE"
 run_pipeline

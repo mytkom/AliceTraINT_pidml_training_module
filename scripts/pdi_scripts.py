@@ -53,14 +53,14 @@ class PlotsSubcommand:
         env = get_pdi_env()
         
         plots_script = env.get("PDI_PLOTS_SCRIPT", str(PROJECT_ROOT / "pdi" / "scripts" / "generate_plots.py"))
-        results_dir = Path(env.get("RESULTS_DIR", str(PROJECT_ROOT / "results")))
+        results_dir = Path(env.get("RESULTS_DIR", str(PROJECT_ROOT / "results"))) / "project"
 
         if not results_dir.exists():
             print(f"Results directory not found: {results_dir}")
             return
 
         for particle_dir in results_dir.iterdir():
-            if not particle_dir.is_dir() or particle_dir.name == "project":
+            if not particle_dir.is_dir():
                 continue
             
             run_dir = particle_dir / "run_1"

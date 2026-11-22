@@ -1,4 +1,4 @@
 [submodule "pdi"]
 	path = pdi
 	url = git@github.com:saganatt/pdi.git
-	branch = alibuild-python
+	branch = alicetraint-tm

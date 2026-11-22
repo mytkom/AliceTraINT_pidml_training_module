@@ -312,6 +312,12 @@ func (r *DatasetRunner) patchTrainingConfig() error {
 		cfg["sim_dataset_paths"] = paths
 	}
 
+	if os.Getenv("ALICETRAINT_TRAINING_DEVICE") == "cpu" {
+		t := cfg["training"].(map[string]interface{})
+		t["device"] = "cpu"
+		t["gpu_resident_dataset"] = false
+	}
+
 	out, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal patched training config: %w", err)

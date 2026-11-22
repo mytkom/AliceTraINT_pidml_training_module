@@ -74,6 +74,17 @@ func main() {
 	}
 
 	for {
+		tt, err := client.GetQueuedTask(cfg)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+
+		if tt == nil {
+			time.Sleep(waitDuration)
+			continue
+		}
+		// Clear only when a new task starts, so run's results stay for inspection after being completed
+
 		err = removeContents(cfg.DataDirPath)
 		if err != nil {
 			log.Fatal(err.Error())
@@ -89,16 +100,6 @@ func main() {
 		}
 		if err := os.RemoveAll(filepath.Join(cfg.PdiDirPath, "training_runs")); err != nil {
 			log.Printf("failed to remove %s: %v", filepath.Join(cfg.PdiDirPath, "training_runs"), err)
-		}
-
-		tt, err := client.GetQueuedTask(cfg)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-
-		if tt == nil {
-			time.Sleep(waitDuration)
-			continue
 		}
 
 		jsonString, err := json.Marshal(tt.Configuration)
