@@ -10,6 +10,12 @@
 
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$HOME/AliceTraINT_pidml_training_module}"
+
+shopt -s nullglob
+for f in alicetraint-worker-*.out alicetraint-worker-*.err; do
+  [[ "$f" == *"-${SLURM_JOB_ID}."* ]] || rm -f "$f"
+done
+
 set -a; source .env; set +a
 
 STOP_FILE=.epn-worker-stop
