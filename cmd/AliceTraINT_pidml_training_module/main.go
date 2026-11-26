@@ -68,6 +68,11 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
+	err = os.MkdirAll(cfg.DatasetCacheDirPath, os.ModePerm)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	for {
 		err = removeContents(cfg.DataDirPath)
 		if err != nil {
@@ -104,11 +109,17 @@ func main() {
 		os.WriteFile(trainingConfigPath, jsonString, os.ModePerm)
 
 		training_commands := []scripts.Command{
-			scripts.NewGridDownloadRunner(cfg, tt.AODFiles),
-			scripts.NewProducerRunner(cfg),
+			scripts.NewDatasetRunner(
+				cfg,
+				tt.AODFiles,
+				tt.IsONe,
+				tt.IsData,
+				tt.SubsampleEventCount,
+				trainingConfigPath,
+			),
 			scripts.NewPdiRunner(scripts.PdiCommandTrain, cfg, trainingConfigPath),
 		}
-		err = runCommands(training_commands, tt.ID)	
+		err = runCommands(training_commands, tt.ID)
 		if err != nil {
 			handleError(cfg, err, tt.ID)
 			continue

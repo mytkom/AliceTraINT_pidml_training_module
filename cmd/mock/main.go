@@ -77,6 +77,7 @@ func main() {
 		time.Sleep(duration)
 
 		uploadRecursiveWalkForExtension("mock_uploads/graphs", ".png", cfg, ttr.ID)
+		uploadRecursiveWalkForExtension("mock_uploads/logs", ".log", cfg, ttr.ID)
 
 		err = client.UpdateTaskStatus(cfg, ttr.ID, client.Completed)
 		if err != nil {

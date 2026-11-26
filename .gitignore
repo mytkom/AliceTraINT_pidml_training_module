@@ -27,3 +27,5 @@ go.work.sum
 gridCertificate.p12
 data
 results
+dataset_cache
+scripts/subsample

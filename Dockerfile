@@ -45,6 +45,7 @@ RUN sed -i 's/GIT_COMMAND_TIMEOUT_SEC = 120/GIT_COMMAND_TIMEOUT_SEC = 600/' /usr
 
 USER alice
 WORKDIR /wd/alice
+ENV ALIBUILD_WORK_DIR=/wd/alice/sw
 RUN aliBuild build O2Physics --defaults o2 -j 4
 
 # Install golang
@@ -69,4 +70,6 @@ ENV PATH="$HOME/go/bin:/usr/local/go/bin:$PATH"
 COPY --chown=alice . .
 USER alice
 RUN go build -o AliceTraINT_pidml_training_module ./cmd/AliceTraINT_pidml_training_module
+# Build ROOT subsample helper used by dataset pipeline (needs O2Physics/ROOT env)
+RUN alienv setenv O2Physics/latest -c make subsample
 CMD [ "./AliceTraINT_pidml_training_module" ]

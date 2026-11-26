@@ -16,6 +16,9 @@ def get_task(machine_id):
             "AODFiles": [
                 {"Path": "data/LHC23k4g-535069-from-001-to-006.root"}
             ],
+            "IsONe": False,
+            "IsData": False,
+            "SubsampleEventCount": 400000,
             "Configuration": {
                 "training": {
                     "batch_size": 1024,

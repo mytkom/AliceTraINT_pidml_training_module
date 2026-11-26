@@ -13,9 +13,12 @@ type AODFile struct {
 }
 
 type TrainingTaskResponse struct {
-	ID            uint
-	AODFiles      []AODFile
-	Configuration interface{}
+	ID                  uint
+	AODFiles            []AODFile
+	IsONe               bool
+	IsData              bool
+	SubsampleEventCount uint
+	Configuration       interface{}
 }
 
 func GetQueuedTask(cfg *config.Config) (*TrainingTaskResponse, error) {

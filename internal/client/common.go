@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
 )
@@ -72,7 +73,7 @@ func sendMultipartRequest(cfg *config.Config, method, path string, formData map[
 		var err error
 
 		if file, ok := fileReader.(*os.File); ok {
-			fw, err = writer.CreateFormFile(fieldName, file.Name())
+			fw, err = writer.CreateFormFile(fieldName, filepath.Base(file.Name()))
 		} else {
 			fw, err = writer.CreateFormField(fieldName)
 		}
