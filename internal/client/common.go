@@ -10,9 +10,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mytkom/AliceTraINT_pidml_training_module/internal/config"
 )
+
+var httpClient = &http.Client{Timeout: 5 * time.Minute}
+
+func headersForLog(h http.Header) http.Header {
+	safe := h.Clone()
+	safe.Del("Secret-Id")
+	return safe
+}
 
 func sendRequest(cfg *config.Config, method, path string, body interface{}, headers map[string]string) (*http.Response, []byte, error) {
 	url := fmt.Sprintf("%s%s", cfg.AlicetrainBaseUrl, path)
@@ -40,10 +49,9 @@ func sendRequest(cfg *config.Config, method, path string, body interface{}, head
 		req.Header.Add(key, value)
 	}
 
-	log.Printf("Sending %s request to %s with headers: %v", method, url, req.Header)
+	log.Printf("Sending %s request to %s with headers: %v", method, url, headersForLog(req.Header))
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Error sending request: %v", err)
 		return nil, nil, fmt.Errorf("failed to execute request: %v", err)
@@ -105,10 +113,9 @@ func sendMultipartRequest(cfg *config.Config, method, path string, formData map[
 		req.Header.Add(key, value)
 	}
 
-	log.Printf("Sending %s request to %s with headers: %v", method, url, req.Header)
+	log.Printf("Sending %s request to %s with headers: %v", method, url, headersForLog(req.Header))
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Printf("Error sending request: %v", err)
 		return nil, nil, fmt.Errorf("failed to execute request: %v", err)

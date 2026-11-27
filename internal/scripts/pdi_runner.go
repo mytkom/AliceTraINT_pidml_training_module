@@ -115,13 +115,21 @@ func uploadWalkDir(cfg *config.Config, rootDir string, resType client.TaskResult
 		if !d.IsDir() {
 			ext := client.GetExtensionFromResultType(resType)
 			if strings.HasSuffix(strings.ToLower(d.Name()), strings.ToLower(ext)) {
+				name := d.Name()
+				if resType == client.Onnx {
+					particle := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(path))))
+					name = particle + ".onnx"
+				}
 				fmt.Println("Found and uploading:", path)
-				client.UploadTaskResult(cfg, ttId, &client.TaskResultPayload{
-					Name:        d.Name(),
-					Description: descFunc(d.Name()),
+				if err := client.UploadTaskResult(cfg, ttId, &client.TaskResultPayload{
+					Name:        name,
+					Description: descFunc(name),
 					Type:        resType,
 					FilePath:    path,
-				})
+				}); err != nil {
+					fmt.Println("Error uploading:", err)
+					return err
+				}
 			}
 		}
 		return nil
