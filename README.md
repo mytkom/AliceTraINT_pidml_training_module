@@ -2,25 +2,17 @@
 This repository is part of AliceTraINT project, its web interface code is [here](https://github.com/mytkom/AliceTraINT).
 AliceTraINT PIDML training module is software for AliceTraINT's training machine, which trains Neural Networks for Particle Identification using Machine Learning in CERN ALICE experiment and sync results with central web interface.
 
+## Setting up a training machine
+To register a machine and run the module on it with Docker, follow [Setting up a training machine](https://alicetraint.app.cern.ch/docs/setting-up-a-training-machine) in the AliceTraINT docs. How the module works is described in [Training module](https://alicetraint.app.cern.ch/docs/training-module) and [Machine API](https://alicetraint.app.cern.ch/docs/machine-api). The rest of this README is about developing the module.
+
 ## Cloning repository
-Training module to work needs `pdi` repository (PIDML python code), which is added as git submodule under `pdi` subdir to this repository. It means that cloning needs additional step: 
+The training code (`pdi`) is a Git submodule with an SSH address, so cloning needs a GitHub SSH key and the submodule step:
 ```bash
-git clone <this repository url>
-git submodule update --init --recursive 
+git clone --recurse-submodules <this repository url>
 ```
 
-## Getting started
-You need to configure your machine using `.env` file. First copy defaults:
-```bash
-cp .env.example .env
-```
-Three variables must be configured: `MACHINE_ID`, `MACHINE_SECRET_KEY` (both obtainable from web interface) and `ALICETRAINT_BASE_URL` (url of web interface used to obtain machine id and secret key).
-
-To obtain `MACHINE_ID` and `MACHINE_SECRET_KEY` from **AliceTraINT** web interface you need to enter "Training Machines", click "Register Training Machine", set name and submit, copy id and secret key.
-
-Then you should update `.env` file with obtained values.
-
-Training module always requests from web interface (never the other way), because of that queued training tasks are requested periodically (HTTP Pooling). Wait time between requests can be adjusted using `ALICETRAINT_POOLING_WAIT_SECONDS` enviroment variable.
+## Configuration
+Copy `.env.example` to `.env` and set `MACHINE_ID`, `MACHINE_SECRET_KEY` and `ALICETRAINT_BASE_URL`. Every variable in `.env.example` must be set; the module stops at startup when one is missing.
 
 ### Dataset cache
 Produced (subsampled) ROOT datasets are expensive to rebuild. Set `ALICETRAINT_DATASET_CACHE_DIR_PATH` to a durable directory that is **not** wiped between tasks. Cache key is SHA256 of:
@@ -37,17 +29,8 @@ Beyond `ID`, `AODFiles`, `Configuration`, webapp must send:
 
 Module patches `train.json` `sim_dataset_paths` or `exp_dataset_paths` to the cached ROOT path.
 
-## Running project
-Preffered way of interacting with project is building docker image using provided Dockerfile and executing container with enviroment variables overwriting:
-### Docker
-Take into account that part of **O2Physics** is being build in this docker image, so it can take long time to finish and take great amount of disk space. To build docker image you need to save your GRID certificate in root dir with name `gridCertificate.p12`, it is needed for downloading training data from GRID. Make sure that enviroment variables are configured, it can be done by `.env` file or overwriting variables in environment.
-Then you can build your image, assuming that you are in root dir:
-```bash
-docker build -t alicetraint/training-module .
-```
-After building you can run a container using this image and adjust configuration using enviroment variables passed to `docker run` command.
-
-Mount `ALICETRAINT_DATASET_CACHE_DIR_PATH` as a volume so cache survives container recreate.
+## Building
+The Docker image (`Dockerfile`) builds O2Physics, the Python environment and the module, which takes a long time; see the docs for the full `docker build` and `docker run` commands. For local development without Docker you need an O2Physics environment for the scripts.
 
 ### Local subsample binary
 Dataset pipeline needs `scripts/subsample` (ROOT C++ helper). With O2Physics env:
